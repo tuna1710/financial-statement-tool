@@ -1,20 +1,38 @@
 # Financial Statement Tool (Thông tư 200/2014/TT-BTC)
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tuna1710/financial-statement-tool/blob/main/Bao_Cao_Tai_Chinh_Colab.ipynb)
+[![Excel XLSM](https://img.shields.io/badge/Excel-Macro%20.XLSM-green.svg)](#-2-file-excel-macro-xlsm-1-click-chọn-thư-mục-chạy-offline)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
-[![VBA](https://img.shields.io/badge/Excel-VBA%20Macro-green.svg)](#-giải-pháp-vba-macro-cho-người-dùng-excel-thuần-túy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
 Công cụ tự động hóa đọc Bảng cân đối tài khoản (Trial Balance) và lập **Bộ Báo cáo Tài chính hoàn chỉnh** theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (**Thông tư 200/2014/TT-BTC**).
 
-Hỗ trợ **3 hình thức triển khai linh hoạt**:
-1. ☁️ **Google Colab Cloud (1-Click Run):** Không cần cài đặt máy tính, xem biểu đồ trực quan và tải file ngay trên trình duyệt.
-2. 💻 **Python CLI (Đa kỳ nâng cao):** Xử lý hàng loạt không giới hạn quý (Q1 -> Q4), tốc độ xử lý tức thì, cam kết cân đối tuyệt đối (Chênh lệch = 0 VNĐ).
-3. 📑 **Excel VBA Macro (Native Excel):** Dành riêng cho kế toán làm việc trực tiếp trong Excel offline, import module và bấm nút là chạy.
+Dự án cung cấp **3 hình thức triển khai hoàn hảo** đáp ứng mọi đối tượng người dùng:
+1. 📑 **File Excel Macro (`Bo_Bao_Cao_Tai_Chinh_TT200.xlsm`):** Dành riêng cho Kế toán dùng trực tiếp trong Excel. Mở file, bấm 1 nút chọn thư mục chứa dữ liệu là báo cáo tự động hình thành!
+2. ☁️ **Google Colab Cloud (1-Click Run):** Không cần cài đặt phần mềm trên máy tính, trực quan hóa biểu đồ tài chính và tải báo cáo ngay trên trình duyệt web.
+3. 💻 **Python CLI (Đa kỳ nâng cao):** Tự động hóa hàng loạt không giới hạn quý (Q1 -> Q4 cả năm), tốc độ tính toán tức thì, cam kết cân đối tuyệt đối 100% (Chênh lệch = 0 VNĐ).
 
 ---
 
-## ⚡ 1. Chạy trực tiếp trên Google Colab (Không cần cài đặt)
+## 📑 1. File Excel Macro (`.xlsm`) - 1-Click Chọn thư mục & Chạy Offline
+
+Dành cho người dùng muốn trải nghiệm đơn giản và trực quan nhất ngay trong Microsoft Excel:
+
+- **File có sẵn trong repo:** [`Bo_Bao_Cao_Tai_Chinh_TT200.xlsm`](Bo_Bao_Cao_Tai_Chinh_TT200.xlsm)
+- **Cách sử dụng:**
+  1. Tải file `Bo_Bao_Cao_Tai_Chinh_TT200.xlsm` về máy tính và mở bằng Microsoft Excel (chọn *Enable Content / Enable Macros* nếu được hỏi).
+  2. Tại trang **`TRANG_CHU`**, bấm vào nút to màu xanh Navy:  
+     👉 **"📁 BẤM VÀO ĐÂY ĐỂ CHỌN THƯ MỤC INPUT & LẬP BCTC"**
+  3. Chọn thư mục chứa các file Excel Bảng cân đối tài khoản các quý (ví dụ thư mục `data/` chứa Q1, Q2...).
+  4. Hệ thống VBA Macro sẽ tự động:
+     - Quét toàn bộ file trong thư mục, tự nhận diện Quý và Năm.
+     - Lọc bỏ sạch các dòng tiêu đề trang in lặp lại.
+     - Cập nhật số liệu chuẩn xác vào các Sheet: **`B01-DN (CDKT)`**, **`B02-DN (KQKD)`**, **`KPI_Dashboard`**.
+     - Đảm bảo **Tổng Tài sản = Tổng Nguồn vốn (Chênh lệch 0 VNĐ)**.
+
+---
+
+## ⚡ 2. Chạy trực tiếp trên Google Colab (Không cần cài đặt)
 
 Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực quan hóa biểu đồ và xuất báo cáo ngay trên trình duyệt web:
 
@@ -26,19 +44,6 @@ Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực qu
 3. **Bước 3:** Chạy tự động lập Báo cáo Tài chính chuẩn TT200 (B01-DN, B02-DN, B03-DN, KPI Dashboard).
 4. **Bước 4:** Khảo sát Dashboard biểu đồ trực quan (Doanh thu & Lợi nhuận, Biên lợi nhuận gộp/ròng, Quy mô Tài sản - Vốn chủ sở hữu, Khả năng thanh toán hiện hành & tức thời).
 5. **Bước 5:** Tải file Excel Báo cáo hoàn chỉnh (`Bo_Bao_Cao_Tai_Chinh.xlsx`) về máy tính.
-
----
-
-## 📑 2. Giải pháp VBA Macro (Cho người dùng Excel thuần túy)
-
-Dành cho kế toán viên chỉ muốn làm việc hoàn toàn trong Excel offline mà không cần cài đặt Python:
-
-- **Module VBA nguồn:** `vba/BaoCaoTaiChinh_TT200.bas`
-- **Hướng dẫn chi tiết:** Xem tại [vba/HD_SU_DUNG_VBA.md](vba/HD_SU_DUNG_VBA.md)
-- **Cách dùng:**
-  1. Mở file Excel bất kỳ, bấm `Alt + F11` ➔ `File` ➔ `Import File...` ➔ Chọn `BaoCaoTaiChinh_TT200.bas`.
-  2. Vẽ một nút bấm (Button / Shape) và gán macro `Chay_Lap_Bao_Cao_Tai_Chinh`.
-  3. Bấm nút ➔ Chọn file Bảng cân đối tài khoản ➔ Tự động tạo ngay Sheet `B01-DN (CDKT)` và `B02-DN (KQKD)` cân đối 100% (Chênh lệch = 0 VNĐ).
 
 ---
 
@@ -114,8 +119,9 @@ python3 lap_bao_cao_tai_chinh.py \
 
 ```
 financial-statement-tool/
+├── Bo_Bao_Cao_Tai_Chinh_TT200.xlsm      # File Excel Macro Native (Bấm nút chọn thư mục là chạy)
 ├── Bao_Cao_Tai_Chinh_Colab.ipynb         # Google Colab Notebook tương tác 1-click & biểu đồ
-├── vba/                                  # Giải pháp Excel VBA Macro (Offline)
+├── vba/                                  # Thư mục mã nguồn VBA
 │   ├── BaoCaoTaiChinh_TT200.bas          # Module VBA mã nguồn chính
 │   └── HD_SU_DUNG_VBA.md                 # Hướng dẫn chi tiết cách Import và sử dụng
 ├── data/                                 # Chứa các file Excel Bảng cân đối tài khoản đầu vào
