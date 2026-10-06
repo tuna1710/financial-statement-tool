@@ -1,6 +1,27 @@
 # Financial Statement Tool (Thông tư 200/2014/TT-BTC)
 
-Công cụ Python tự động hóa phân tích Bảng cân đối tài khoản (Trial Balance) và lập Bộ Báo cáo Tài chính hoàn chỉnh theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (Thông tư 200/2014/TT-BTC).
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tuna1710/financial-statement-tool/blob/main/Bao_Cao_Tai_Chinh_Colab.ipynb)
+[![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
+
+Công cụ Python tự động hóa phân tích Bảng cân đối tài khoản (Trial Balance) và lập **Bộ Báo cáo Tài chính hoàn chỉnh** theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (**Thông tư 200/2014/TT-BTC**).
+
+---
+
+## ⚡ Chạy trực tiếp trên Google Colab (Không cần cài đặt)
+
+Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực quan hóa biểu đồ và xuất báo cáo ngay trên trình duyệt web:
+
+[![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tuna1710/financial-statement-tool/blob/main/Bao_Cao_Tai_Chinh_Colab.ipynb)
+
+**Quy trình 5 bước trên Colab:**
+1. **Bước 1:** Khởi tạo môi trường & clone mã nguồn tự động.
+2. **Bước 2:** Chọn phương thức nạp dữ liệu: dùng file mẫu có sẵn hoặc tải file `.xlsx` trực tiếp từ máy tính của bạn.
+3. **Bước 3:** Chạy tự động lập Báo cáo Tài chính chuẩn TT200 (B01-DN, B02-DN, B03-DN, KPI Dashboard).
+4. **Bước 4:** Khảo sát Dashboard biểu đồ trực quan (Doanh thu & Lợi nhuận, Biên lợi nhuận gộp/ròng, Quy mô Tài sản - Vốn chủ sở hữu, Khả năng thanh toán hiện hành & tức thời).
+5. **Bước 5:** Tải file Excel Báo cáo hoàn chỉnh (`Bo_Bao_Cao_Tai_Chinh.xlsx`) về máy tính.
+
+---
 
 ## 🚀 Tính năng nổi bật
 
@@ -34,7 +55,7 @@ Công cụ Python tự động hóa phân tích Bảng cân đối tài khoản 
 
 ---
 
-## 🛠 Cài đặt & Hướng dẫn sử dụng
+## 🛠 Hướng dẫn cài đặt & Chạy trên máy tính (Local)
 
 ### 1. Cài đặt thư viện
 Yêu cầu Python 3.9+
@@ -61,7 +82,7 @@ python3 lap_bao_cao_tai_chinh.py \
     --output output/Bo_Bao_Cao_Tai_Chinh_2025.xlsx
 ```
 
-#### Cách 3: Lệnh 2 quý (Backward compatibility)
+#### Cách 3: Lệnh 2 quý (Tương thích ngược)
 ```bash
 python3 lap_bao_cao_tai_chinh.py \
     --q1 data/Bang_can_doi_tai_khoanQ12026.xlsx \
@@ -75,6 +96,7 @@ python3 lap_bao_cao_tai_chinh.py \
 
 ```
 financial-statement-tool/
+├── Bao_Cao_Tai_Chinh_Colab.ipynb         # Google Colab Notebook tương tác 1-click & biểu đồ
 ├── data/                                 # Chứa các file Excel Bảng cân đối tài khoản đầu vào
 │   ├── Bang_can_doi_tai_khoanQ12026.xlsx
 │   └── Bang_can_doi_tai_khoanQ22026.xlsx
