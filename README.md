@@ -2,13 +2,19 @@
 
 [![Open In Colab](https://colab.research.google.com/assets/colab-badge.svg)](https://colab.research.google.com/github/tuna1710/financial-statement-tool/blob/main/Bao_Cao_Tai_Chinh_Colab.ipynb)
 [![Python 3.9+](https://img.shields.io/badge/python-3.9+-blue.svg)](https://www.python.org/downloads/)
+[![VBA](https://img.shields.io/badge/Excel-VBA%20Macro-green.svg)](#-giải-pháp-vba-macro-cho-người-dùng-excel-thuần-túy)
 [![License: MIT](https://img.shields.io/badge/License-MIT-yellow.svg)](https://opensource.org/licenses/MIT)
 
-Công cụ Python tự động hóa phân tích Bảng cân đối tài khoản (Trial Balance) và lập **Bộ Báo cáo Tài chính hoàn chỉnh** theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (**Thông tư 200/2014/TT-BTC**).
+Công cụ tự động hóa đọc Bảng cân đối tài khoản (Trial Balance) và lập **Bộ Báo cáo Tài chính hoàn chỉnh** theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (**Thông tư 200/2014/TT-BTC**).
+
+Hỗ trợ **3 hình thức triển khai linh hoạt**:
+1. ☁️ **Google Colab Cloud (1-Click Run):** Không cần cài đặt máy tính, xem biểu đồ trực quan và tải file ngay trên trình duyệt.
+2. 💻 **Python CLI (Đa kỳ nâng cao):** Xử lý hàng loạt không giới hạn quý (Q1 -> Q4), tốc độ xử lý tức thì, cam kết cân đối tuyệt đối (Chênh lệch = 0 VNĐ).
+3. 📑 **Excel VBA Macro (Native Excel):** Dành riêng cho kế toán làm việc trực tiếp trong Excel offline, import module và bấm nút là chạy.
 
 ---
 
-## ⚡ Chạy trực tiếp trên Google Colab (Không cần cài đặt)
+## ⚡ 1. Chạy trực tiếp trên Google Colab (Không cần cài đặt)
 
 Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực quan hóa biểu đồ và xuất báo cáo ngay trên trình duyệt web:
 
@@ -23,7 +29,20 @@ Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực qu
 
 ---
 
-## 🚀 Tính năng nổi bật
+## 📑 2. Giải pháp VBA Macro (Cho người dùng Excel thuần túy)
+
+Dành cho kế toán viên chỉ muốn làm việc hoàn toàn trong Excel offline mà không cần cài đặt Python:
+
+- **Module VBA nguồn:** `vba/BaoCaoTaiChinh_TT200.bas`
+- **Hướng dẫn chi tiết:** Xem tại [vba/HD_SU_DUNG_VBA.md](vba/HD_SU_DUNG_VBA.md)
+- **Cách dùng:**
+  1. Mở file Excel bất kỳ, bấm `Alt + F11` ➔ `File` ➔ `Import File...` ➔ Chọn `BaoCaoTaiChinh_TT200.bas`.
+  2. Vẽ một nút bấm (Button / Shape) và gán macro `Chay_Lap_Bao_Cao_Tai_Chinh`.
+  3. Bấm nút ➔ Chọn file Bảng cân đối tài khoản ➔ Tự động tạo ngay Sheet `B01-DN (CDKT)` và `B02-DN (KQKD)` cân đối 100% (Chênh lệch = 0 VNĐ).
+
+---
+
+## 🚀 3. Tính năng nổi bật của Bộ công cụ
 
 1. **Hỗ trợ xử lý đa kỳ linh hoạt (Multi-period support):**
    - Tự động nhận diện kỳ kế toán từ nội dung file Excel hoặc tên file (ví dụ: `Quý 1 năm 2025`, `Quý 2 năm 2025`, `Quý 3 năm 2025`, `Quý 4 năm 2025`...).
@@ -55,22 +74,21 @@ Chỉ với 1 cú click, bạn có thể chạy toàn bộ công cụ, trực qu
 
 ---
 
-## 🛠 Hướng dẫn cài đặt & Chạy trên máy tính (Local)
+## 🛠 4. Hướng dẫn chạy trên máy tính cá nhân (Python CLI)
 
-### 1. Cài đặt thư viện
+### Cài đặt thư viện
 Yêu cầu Python 3.9+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Cách chạy tool
+### Các lệnh chạy công cụ
 
 #### Cách 1: Chỉ định thư mục chứa các file Bảng cân đối tài khoản (Khuyên dùng)
 Chỉ cần thả toàn bộ file Excel các quý (ví dụ: Q1, Q2, Q3, Q4 năm 2025 hoặc 2026) vào thư mục `data/`:
 ```bash
 python3 lap_bao_cao_tai_chinh.py --dir data --output output/Bo_Bao_Cao_Tai_Chinh.xlsx
 ```
-*Tool sẽ tự động quét toàn bộ file, đọc tiêu đề Quý/Năm, sắp xếp thứ tự và xuất ra một báo cáo tổng hợp duy nhất.*
 
 #### Cách 2: Truyền danh sách file cụ thể
 ```bash
@@ -97,12 +115,15 @@ python3 lap_bao_cao_tai_chinh.py \
 ```
 financial-statement-tool/
 ├── Bao_Cao_Tai_Chinh_Colab.ipynb         # Google Colab Notebook tương tác 1-click & biểu đồ
+├── vba/                                  # Giải pháp Excel VBA Macro (Offline)
+│   ├── BaoCaoTaiChinh_TT200.bas          # Module VBA mã nguồn chính
+│   └── HD_SU_DUNG_VBA.md                 # Hướng dẫn chi tiết cách Import và sử dụng
 ├── data/                                 # Chứa các file Excel Bảng cân đối tài khoản đầu vào
 │   ├── Bang_can_doi_tai_khoanQ12026.xlsx
 │   └── Bang_can_doi_tai_khoanQ22026.xlsx
 ├── output/                               # Chứa file Excel báo cáo hoàn chỉnh xuất ra
 │   └── Bo_Bao_Cao_Tai_Chinh_Q1_Q2_2026.xlsx
-├── lap_bao_cao_tai_chinh.py             # Script xử lý đa kỳ và lập báo cáo
+├── lap_bao_cao_tai_chinh.py             # Script xử lý đa kỳ và lập báo cáo (Python)
 ├── requirements.txt                      # Danh mục thư viện phụ thuộc
 ├── .gitignore
 └── README.md
