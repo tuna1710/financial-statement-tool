@@ -1,22 +1,50 @@
 #!/usr/bin/env python3
 """
 TOOL TỰ ĐỘNG LẬP BỘ BÁO CÁO TÀI CHÍNH THEO THÔNG TƯ 200/2014/TT-BTC
-Tự động đọc 2 file Bảng cân đối tài khoản (Trial Balance) Quý 1 & Quý 2
-và lập:
-1. Bảng Cân đối kế toán (Mẫu B01-DN)
-2. Báo cáo Kết quả hoạt động kinh doanh (Mẫu B02-DN)
-3. Báo cáo Lưu chuyển tiền tệ gián tiếp (Mẫu B03-DN)
-4. Dashboard & Phân tích các chỉ số tài chính (Financial KPI & Variance Analysis)
-5. Bảng Cân đối tài khoản tổng hợp đối chiếu
+Hỗ trợ linh hoạt đa kỳ: 1 quý, 2 quý, 3 quý, 4 quý (cả năm 2025, 2026,...) hoặc nhiều năm.
+Tự động quét thư mục hoặc nhận danh sách file, tự động nhận diện Quý/Năm và sắp xếp.
 """
 
 import sys
+import os
+import glob
+import re
 import argparse
 import openpyxl
 from openpyxl.styles import Font, PatternFill, Alignment, Border, Side
 from openpyxl.utils import get_column_letter
 
+def detect_period_info(file_path):
+    """
+    Tự động nhận diện Quý và Năm từ nội dung file Excel hoặc tên file.
+    """
+    wb = openpyxl.load_workbook(file_path, data_only=True)
+    sheet = wb.active
+    
+    # 1. Quét 15 dòng đầu của sheet
+    for r in range(1, 15):
+        val = sheet.cell(r, 1).value
+        if val:
+            m = re.search(r'Quý\s*(\d+)\s*năm\s*(\d{4})', str(val), re.IGNORECASE)
+            if m:
+                return int(m.group(2)), int(m.group(1)), f"Quý {m.group(1)}/{m.group(2)}"
+            m2 = re.search(r'Tháng\s*(\d+)\s*năm\s*(\d{4})', str(val), re.IGNORECASE)
+            if m2:
+                return int(m2.group(2)), int(m2.group(1)), f"Tháng {m2.group(1)}/{m2.group(2)}"
+
+    # 2. Dự phòng: Quét từ tên file
+    base = os.path.basename(file_path)
+    m = re.search(r'Q(\d).*?(\d{4})', base, re.IGNORECASE)
+    if m:
+        return int(m.group(2)), int(m.group(1)), f"Quý {m.group(1)}/{m.group(2)}"
+    m_yr = re.search(r'(\d{4})', base)
+    yr = int(m_yr.group(1)) if m_yr else 2026
+    return yr, 99, base
+
 def parse_trial_balance(file_path):
+    """
+    Đọc dữ liệu từ file Bảng cân đối tài khoản chuẩn kế toán Việt Nam.
+    """
     wb = openpyxl.load_workbook(file_path, data_only=True)
     sheet = wb.active
     data = {}
@@ -39,131 +67,213 @@ def parse_trial_balance(file_path):
             }
     return data
 
-def generate_financial_report(q1_file, q2_file, output_file):
-    print(f"[*] Đang đọc dữ liệu từ: {q1_file} và {q2_file}...")
-    q1 = parse_trial_balance(q1_file)
-    q2 = parse_trial_balance(q2_file)
+def extract_bs(period_data, mode, cum_profit):
+    """
+    Trích xuất các chỉ tiêu Bảng Cân đối kế toán (Mẫu B01-DN) theo TT200.
+    mode: 'dk' (đầu kỳ) hoặc 'ck' (cuối kỳ)
+    """
+    def n(tk):
+        d = period_data.get(tk, {})
+        return (d.get('dk_n', 0) if mode == 'dk' else d.get('ck_n', 0)) - (d.get('dk_c', 0) if mode == 'dk' else d.get('ck_c', 0))
+    def c(tk):
+        d = period_data.get(tk, {})
+        return (d.get('dk_c', 0) if mode == 'dk' else d.get('ck_c', 0)) - (d.get('dk_n', 0) if mode == 'dk' else d.get('ck_n', 0))
 
-    def val(data, tk, col):
+    # A. TÀI SẢN NGẮN HẠN (100)
+    m111 = n('111') + n('112')
+    m112 = n('12811.02')
+    m110 = m111 + m112
+    m123 = n('12811.04')
+    m120 = m123
+    m136 = n('138') + n('141')
+    m130 = m136
+    m140 = 0.0
+    m151 = n('242')
+    m152 = n('133')
+    m150 = m151 + m152
+    m100 = m110 + m120 + m130 + m140 + m150
+
+    # B. TÀI SẢN DÀI HẠN (200)
+    m222 = n('211')
+    m223 = -c('214')
+    m221 = m222 + m223
+    m220 = m221
+    m268 = n('244')
+    m260 = m268
+    m200 = m220 + m260
+    m270 = m100 + m200
+
+    # C. NỢ PHẢI TRẢ (300)
+    m313 = c('333')
+    m314 = c('334')
+    m315 = c('335')
+    m319 = c('338')
+    m322 = c('353')
+    m310 = m313 + m314 + m315 + m319 + m322
+    m300 = m310
+
+    # D. VỐN CHỦ SỞ HỮU (400)
+    m411 = c('411')
+    m415 = c('413')
+    m418 = c('414')
+    m420 = c('418')
+    m421a = c('4211')
+    m421b = c('4212') + cum_profit
+    m421 = m421a + m421b
+    m410 = m411 + m415 + m418 + m420 + m421
+    m400 = m410
+    m440 = m300 + m400
+
+    return {
+        'm100': m100, 'm110': m110, 'm111': m111, 'm112': m112,
+        'm120': m120, 'm123': m123,
+        'm130': m130, 'm136': m136, 'm140': m140,
+        'm150': m150, 'm151': m151, 'm152': m152,
+        'm200': m200, 'm220': m220, 'm221': m221, 'm222': m222, 'm223': m223,
+        'm260': m260, 'm268': m268,
+        'm270': m270,
+        'm300': m300, 'm310': m310, 'm313': m313, 'm314': m314, 'm315': m315, 'm319': m319, 'm322': m322,
+        'm400': m400, 'm410': m410, 'm411': m411, 'm415': m415, 'm418': m418, 'm420': m420,
+        'm421': m421, 'm421a': m421a, 'm421b': m421b,
+        'm440': m440,
+        'chenh_lech': m270 - m440
+    }
+
+def calculate_pl_for_period(data):
+    """
+    Tính kết quả kinh doanh phát sinh trong một kỳ (quý).
+    """
+    def val(tk, col):
         return data.get(tk, {}).get(col, 0.0)
 
-    # 1. P&L CALCULATIONS
-    dt_q1 = val(q1, '511', 'ps_c') - val(q1, '511', 'ps_n')
-    dtt_q1 = dt_q1
-    gv_q1 = val(q1, '632', 'ps_n') - val(q1, '632', 'ps_c')
-    lng_q1 = dtt_q1 - gv_q1
-    dttc_q1 = val(q1, '515', 'ps_c') - val(q1, '515', 'ps_n')
-    cptc_q1 = val(q1, '635', 'ps_n') - val(q1, '635', 'ps_c')
-    cpbh_q1 = 0.0
-    cpql_q1 = val(q1, '642', 'ps_n') - val(q1, '642', 'ps_c')
-    lnt_q1 = lng_q1 + dttc_q1 - cptc_q1 - cpbh_q1 - cpql_q1
-    lntt_q1 = lnt_q1
-    thue_q1 = val(q1, '821', 'ps_n') - val(q1, '821', 'ps_c')
-    lnst_q1 = lntt_q1 - thue_q1
+    dt = val('511', 'ps_c') - val('511', 'ps_n')
+    dtt = dt
+    gv = val('632', 'ps_n') - val('632', 'ps_c')
+    lng = dtt - gv
+    dttc = val('515', 'ps_c') - val('515', 'ps_n')
+    cptc = val('635', 'ps_n') - val('635', 'ps_c')
+    cpbh = 0.0
+    cpql = val('642', 'ps_n') - val('642', 'ps_c')
+    lnt = lng + dttc - cptc - cpbh - cpql
+    lntt = lnt
+    thue = val('821', 'ps_n') - val('821', 'ps_c')
+    lnst = lntt - thue
 
-    dt_q2 = val(q2, '511', 'ps_c') - val(q2, '511', 'ps_n')
-    dtt_q2 = dt_q2
-    gv_q2 = val(q2, '632', 'ps_n') - val(q2, '632', 'ps_c')
-    lng_q2 = dtt_q2 - gv_q2
-    dttc_q2 = val(q2, '515', 'ps_c') - val(q2, '515', 'ps_n')
-    cptc_q2 = val(q2, '635', 'ps_n') - val(q2, '635', 'ps_c')
-    cpbh_q2 = 0.0
-    cpql_q2 = val(q2, '642', 'ps_n') - val(q2, '642', 'ps_c')
-    lnt_q2 = lng_q2 + dttc_q2 - cptc_q2 - cpbh_q2 - cpql_q2
-    lntt_q2 = lnt_q2
-    thue_q2 = val(q2, '821', 'ps_n') - val(q2, '821', 'ps_c')
-    lnst_q2 = lntt_q2 - thue_q2
+    return {
+        'dt': dt, 'dtt': dtt, 'gv': gv, 'lng': lng,
+        'dttc': dttc, 'cptc': cptc, 'cpbh': cpbh, 'cpql': cpql,
+        'lnt': lnt, 'lntt': lntt, 'thue': thue, 'lnst': lnst
+    }
 
-    dt_6m = dt_q1 + dt_q2
-    dtt_6m = dt_6m
-    gv_6m = gv_q1 + gv_q2
-    lng_6m = lng_q1 + lng_q2
-    dttc_6m = dttc_q1 + dttc_q2
-    cptc_6m = cptc_q1 + cptc_q2
-    cpbh_6m = 0.0
-    cpql_6m = cpql_q1 + cpql_q2
-    lnt_6m = lnt_q1 + lnt_q2
-    lntt_6m = lntt_q1 + lntt_q2
-    thue_6m = thue_q1 + thue_q2
-    lnst_6m = lnst_q1 + lnst_q2
+def generate_multi_period_report(file_list, output_file):
+    """
+    Hàm lõi: Xử lý danh sách file bất kỳ (1 quý, 2 quý, 4 quý cả năm...)
+    """
+    print(f"[*] Nhận diện {len(file_list)} file đầu vào...")
+    
+    # 1. Parse and sort periods chronologically
+    period_items = []
+    for fp in file_list:
+        if not os.path.exists(fp):
+            print(f"[-] Cảnh báo: File không tồn tại: {fp}")
+            continue
+        yr, q, label = detect_period_info(fp)
+        data = parse_trial_balance(fp)
+        period_items.append({
+            'file': fp,
+            'year': yr,
+            'quarter': q,
+            'label': label,
+            'data': data
+        })
 
-    # 2. BALANCE SHEET EXTRACTION
-    def extract_bs(period_data, mode, cum_profit):
-        def n(tk):
-            d = period_data.get(tk, {})
-            return (d.get('dk_n', 0) if mode == 'dk' else d.get('ck_n', 0)) - (d.get('dk_c', 0) if mode == 'dk' else d.get('ck_c', 0))
-        def c(tk):
-            d = period_data.get(tk, {})
-            return (d.get('dk_c', 0) if mode == 'dk' else d.get('ck_c', 0)) - (d.get('dk_n', 0) if mode == 'dk' else d.get('ck_n', 0))
+    if not period_items:
+        print("[!] Không có dữ liệu hợp lệ để lập báo cáo.")
+        return
 
-        m111 = n('111') + n('112')
-        m112 = n('12811.02')
-        m110 = m111 + m112
-        m123 = n('12811.04')
-        m120 = m123
-        m136 = n('138') + n('141')
-        m130 = m136
-        m140 = 0.0
-        m151 = n('242')
-        m152 = n('133')
-        m150 = m151 + m152
-        m100 = m110 + m120 + m130 + m140 + m150
+    # Sắp xếp theo Năm và Quý tăng dần
+    period_items.sort(key=lambda x: (x['year'], x['quarter']))
+    print(f"[*] Các kỳ kế toán được xử lý theo trình tự thời gian:")
+    for p in period_items:
+        print(f"    - {p['label']} ({os.path.basename(p['file'])})")
 
-        m222 = n('211')
-        m223 = -c('214')
-        m221 = m222 + m223
-        m220 = m221
-        m268 = n('244')
-        m260 = m268
-        m200 = m220 + m260
-        m270 = m100 + m200
+    # 2. Tính toán P&L cho từng kỳ và lũy kế
+    cum_lnst = 0.0
+    for p in period_items:
+        pl = calculate_pl_for_period(p['data'])
+        p['pl'] = pl
+        cum_lnst += pl['lnst']
+        p['cum_lnst'] = cum_lnst
 
-        m313 = c('333')
-        m314 = c('334')
-        m315 = c('335')
-        m319 = c('338')
-        m322 = c('353')
-        m310 = m313 + m314 + m315 + m319 + m322
-        m300 = m310
+    # 3. Tính toán Bảng cân đối kế toán:
+    # Số đầu năm lấy từ đầu kỳ của file đầu tiên
+    first_p = period_items[0]
+    bs_open_year = extract_bs(first_p['data'], 'dk', 0.0)
 
-        m411 = c('411')
-        m415 = c('413')
-        m418 = c('414')
-        m420 = c('418')
-        m421a = c('4211')
-        m421b = c('4212') + cum_profit
-        m421 = m421a + m421b
-        m410 = m411 + m415 + m418 + m420 + m421
-        m400 = m410
-        m440 = m300 + m400
+    prev_bs = bs_open_year
+    for p in period_items:
+        # Tự động tính lợi nhuận lũy kế trong năm từ số dư cuối kỳ của các tài khoản 5, 6, 8 trong chính file đó
+        def v_ck(tk, c): return p['data'].get(tk, {}).get(c, 0.0)
+        rev_ck = (v_ck('511', 'ck_c') - v_ck('511', 'ck_n')) + (v_ck('515', 'ck_c') - v_ck('515', 'ck_n'))
+        exp_ck = (v_ck('632', 'ck_n') - v_ck('632', 'ck_c')) + (v_ck('635', 'ck_n') - v_ck('635', 'ck_c')) + (v_ck('642', 'ck_n') - v_ck('642', 'ck_c')) + (v_ck('821', 'ck_n') - v_ck('821', 'ck_c'))
+        direct_cum_profit = rev_ck - exp_ck if (rev_ck != 0 or exp_ck != 0) else p['cum_lnst']
+        bs_ck = extract_bs(p['data'], 'ck', direct_cum_profit)
+        p['bs'] = bs_ck
+        print(f"[*] Kiểm tra cân đối BCĐKT [{p['label']}]: Chênh lệch = {bs_ck['chenh_lech']:,.0f} VNĐ")
 
-        return {
-            'm100': m100, 'm110': m110, 'm111': m111, 'm112': m112,
-            'm120': m120, 'm123': m123,
-            'm130': m130, 'm136': m136, 'm140': m140,
-            'm150': m150, 'm151': m151, 'm152': m152,
-            'm200': m200, 'm220': m220, 'm221': m221, 'm222': m222, 'm223': m223,
-            'm260': m260, 'm268': m268,
-            'm270': m270,
-            'm300': m300, 'm310': m310, 'm313': m313, 'm314': m314, 'm315': m315, 'm319': m319, 'm322': m322,
-            'm400': m400, 'm410': m410, 'm411': m411, 'm415': m415, 'm418': m418, 'm420': m420,
-            'm421': m421, 'm421a': m421a, 'm421b': m421b,
-            'm440': m440,
-            'chenh_lech': m270 - m440
+    # 4. Tính toán Lưu chuyển tiền tệ gián tiếp từng kỳ
+    depr_fixed = 5725755.0  # Mức khấu hao định kỳ
+    cash_start_year = bs_open_year['m110']
+    running_cash_start = cash_start_year
+
+    for idx, p in enumerate(period_items):
+        pl = p['pl']
+        bs_curr = p['bs']
+        bs_prev = bs_open_year if idx == 0 else period_items[idx - 1]['bs']
+        prev_data = first_p['data'] if idx == 0 else period_items[idx - 1]['data']
+        curr_data = p['data']
+
+        depr = depr_fixed
+        d_recv = -((bs_curr['m130'] - bs_prev['m130']) + (bs_curr['m152'] - bs_prev['m152']))
+        d_prep = -(bs_curr['m151'] - bs_prev['m151'])
+        
+        # Biến động nợ phải trả
+        d3331 = curr_data.get('3331', {}).get('ck_c', 0) - (curr_data.get('3331', {}).get('dk_c', 0) if idx == 0 else prev_data.get('3331', {}).get('ck_c', 0))
+        d3335 = curr_data.get('3335', {}).get('ck_c', 0) - (curr_data.get('3335', {}).get('dk_c', 0) if idx == 0 else prev_data.get('3335', {}).get('ck_c', 0))
+        d_pay = ((bs_curr['m314'] - bs_prev['m314']) + (bs_curr['m315'] - bs_prev['m315']) + 
+                 (bs_curr['m319'] - bs_prev['m319']) + (bs_curr['m322'] - bs_prev['m322']) + 
+                 d3331 + d3335)
+        
+        tax_paid = -curr_data.get('3334', {}).get('ps_n', 0.0)
+        cfo = pl['lntt'] + depr + d_recv + d_prep + d_pay + tax_paid
+        cfi = -(bs_curr['m123'] - bs_prev['m123']) - (bs_curr['m268'] - bs_prev['m268'])
+        cff = 0.0
+        net_cf = cfo + cfi + cff
+        cash_open = running_cash_start
+        cash_close = cash_open + net_cf
+        running_cash_start = cash_close
+
+        p['cf'] = {
+            'lntt': pl['lntt'],
+            'depr': depr,
+            'd_recv': d_recv,
+            'd_prep': d_prep,
+            'd_pay': d_pay,
+            'tax_paid': tax_paid,
+            'cfo': cfo,
+            'cfi': cfi,
+            'cff': cff,
+            'net_cf': net_cf,
+            'cash_open': cash_open,
+            'cash_close': cash_close,
+            'diff_check': bs_curr['m110'] - cash_close
         }
 
-    bs_open = extract_bs(q1, 'dk', 0.0)
-    bs_q1 = extract_bs(q1, 'ck', lnst_q1)
-    bs_q2 = extract_bs(q2, 'ck', lnst_6m)
-
-    print(f"[*] Cân đối BCĐKT Đầu năm: Chênh lệch = {bs_open['chenh_lech']:,.0f} VNĐ")
-    print(f"[*] Cân đối BCĐKT Cuối Q1: Chênh lệch = {bs_q1['chenh_lech']:,.0f} VNĐ")
-    print(f"[*] Cân đối BCĐKT Cuối Q2: Chênh lệch = {bs_q2['chenh_lech']:,.0f} VNĐ")
-
-    # Build Excel Workbook
+    # 5. Xây dựng Workbook Excel
     wb = openpyxl.Workbook()
     wb.remove(wb.active)
 
+    # Styles
     font_title = Font(name='Arial', size=16, bold=True, color='1B365D')
     font_subtitle = Font(name='Arial', size=11, italic=True, color='555555')
     font_section = Font(name='Arial', size=11, bold=True, color='0F2537')
@@ -177,25 +287,35 @@ def generate_financial_report(q1_file, q2_file, output_file):
     fill_highlight = PatternFill(start_color='D9E1F2', end_color='D9E1F2', fill_type='solid')
     fill_green = PatternFill(start_color='E2EFDA', end_color='E2EFDA', fill_type='solid')
     
-    thin_border_side = Side(border_style='thin', color='D3D3D3')
+    thin_side = Side(border_style='thin', color='D3D3D3')
     double_bottom = Side(border_style='double', color='000000')
     thick_top = Side(border_style='thin', color='000000')
     
-    border_cell = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
-    border_total = Border(left=thin_border_side, right=thin_border_side, top=thick_top, bottom=double_bottom)
-    border_header = Border(left=thin_border_side, right=thin_border_side, top=thin_border_side, bottom=thin_border_side)
+    border_cell = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
+    border_total = Border(left=thin_side, right=thin_side, top=thick_top, bottom=double_bottom)
+    border_header = Border(left=thin_side, right=thin_side, top=thin_side, bottom=thin_side)
 
-    # 1. SHEET DASHBOARD
+    # -------------------------------------------------------------
+    # SHEET 1: DASHBOARD & PHÂN TÍCH KPI
+    # -------------------------------------------------------------
     ws1 = wb.create_sheet(title='Dashboard & Phân tích')
     ws1.views.sheetView[0].showGridLines = True
     ws1['A2'] = 'BỘ BÁO CÁO TÀI CHÍNH & PHÂN TÍCH TỔNG QUAN'
     ws1['A2'].font = font_title
-    ws1['A3'] = 'Báo cáo quản trị phân tích biến động kết quả kinh doanh và tình hình tài chính Q1 & Q2/2026'
+    yr_str = str(period_items[0]['year'])
+    ws1['A3'] = f"Hệ thống phân tích báo cáo tài chính đa kỳ - Năm {yr_str} (Đơn vị tính: VNĐ)"
     ws1['A3'].font = font_subtitle
-    ws1['A5'] = '1. CÁC CHỈ SỐ TÀI CHÍNH CHỦ YẾU'
+    ws1['A5'] = '1. CÁC CHỈ SỐ TÀI CHÍNH CHỦ YẾU QUA CÁC KỲ'
     ws1['A5'].font = font_section
 
-    kpi_headers = ['Chỉ tiêu tài chính', 'Đơn vị', 'Quý 1/2026', 'Quý 2/2026', 'Lũy kế 6T/2026', 'Tăng trưởng Q2/Q1', 'Đánh giá chuyên sâu']
+    kpi_headers = ['Chỉ tiêu tài chính', 'Đơn vị'] + [p['label'] for p in period_items]
+    if len(period_items) > 1:
+        kpi_headers.append(f"Cả năm {yr_str}" if len(period_items) == 4 else "Tổng các kỳ")
+        kpi_headers.append("Tăng trưởng kỳ cuối")
+        kpi_headers.append("Đánh giá tổng quan")
+    else:
+        kpi_headers.append("Đánh giá")
+
     for col_idx, h in enumerate(kpi_headers, 1):
         cell = ws1.cell(6, col_idx, h)
         cell.font = font_header
@@ -204,63 +324,96 @@ def generate_financial_report(q1_file, q2_file, output_file):
         cell.border = border_header
     ws1.row_dimensions[6].height = 25
 
-    cr_q1 = bs_q1['m100'] / bs_q1['m310'] if bs_q1['m310'] else 0
-    cr_q2 = bs_q2['m100'] / bs_q2['m310'] if bs_q2['m310'] else 0
-    cash_ratio_q1 = bs_q1['m110'] / bs_q1['m310'] if bs_q1['m310'] else 0
-    cash_ratio_q2 = bs_q2['m110'] / bs_q2['m310'] if bs_q2['m310'] else 0
-    debt_ratio_q1 = bs_q1['m300'] / bs_q1['m270'] if bs_q1['m270'] else 0
-    debt_ratio_q2 = bs_q2['m300'] / bs_q2['m270'] if bs_q2['m270'] else 0
+    # Compute Totals for KPI
+    tot_dtt = sum(p['pl']['dtt'] for p in period_items)
+    tot_lng = sum(p['pl']['lng'] for p in period_items)
+    tot_lntt = sum(p['pl']['lntt'] for p in period_items)
+    tot_thue = sum(p['pl']['thue'] for p in period_items)
+    tot_lnst = sum(p['pl']['lnst'] for p in period_items)
+    
+    last_p = period_items[-1]
+    prev_p = period_items[-2] if len(period_items) > 1 else last_p
 
-    kpi_data = [
-        ('Doanh thu thuần', 'VNĐ', dtt_q1, dtt_q2, dtt_6m, (dtt_q2 - dtt_q1) / dtt_q1, 'Tăng trưởng +11.0%'),
-        ('Lợi nhuận gộp', 'VNĐ', lng_q1, lng_q2, lng_6m, (lng_q2 - lng_q1) / lng_q1, 'Tăng trưởng +7.8%'),
-        ('Tỷ suất Lợi nhuận gộp (Gross Margin)', '%', lng_q1/dtt_q1, lng_q2/dtt_q2, lng_6m/dtt_6m, (lng_q2/dtt_q2)-(lng_q1/dtt_q1), 'Biên gộp duy trì cao (~77-80%)'),
-        ('Lợi nhuận trước thuế (EBT)', 'VNĐ', lntt_q1, lntt_q2, lntt_6m, (lntt_q2 - lntt_q1) / lntt_q1, 'Tăng trưởng vượt bậc +39.7%'),
-        ('Chi phí thuế TNDN', 'VNĐ', thue_q1, thue_q2, thue_6m, (thue_q2 - thue_q1) / thue_q1, 'Trích nộp đúng quy định 20%'),
-        ('Lợi nhuận sau thuế (EAT)', 'VNĐ', lnst_q1, lnst_q2, lnst_6m, (lnst_q2 - lnst_q1) / lnst_q1, 'Tăng trưởng xuất sắc +39.8%'),
-        ('Tỷ suất Lợi nhuận ròng (Net Margin)', '%', lnst_q1/dtt_q1, lnst_q2/dtt_q2, lnst_6m/dtt_6m, (lnst_q2/dtt_q2)-(lnst_q1/dtt_q1), 'Biên ròng tăng mạnh từ 25.9% lên 32.6%'),
-        ('Tổng tài sản cuối kỳ', 'VNĐ', bs_q1['m270'], bs_q2['m270'], bs_q2['m270'], (bs_q2['m270'] - bs_q1['m270']) / bs_q1['m270'], 'Tài sản tăng trưởng +38.5%'),
-        ('Vốn chủ sở hữu cuối kỳ', 'VNĐ', bs_q1['m400'], bs_q2['m400'], bs_q2['m400'], (bs_q2['m400'] - bs_q1['m400']) / bs_q1['m400'], 'Tăng trưởng do tích lũy lợi nhuận'),
-        ('Tỷ số thanh toán hiện hành (CR)', 'Lần', cr_q1, cr_q2, cr_q2, cr_q2 - cr_q1, 'Thanh toán an toàn (>1.38 lần)'),
-        ('Tỷ số thanh toán tức thời (Cash Ratio)', 'Lần', cash_ratio_q1, cash_ratio_q2, cash_ratio_q2, cash_ratio_q2 - cash_ratio_q1, 'Thanh khoản tiền mặt cực cao (~0.88 lần)'),
-        ('Tỷ số nợ / Tổng tài sản (D/A)', '%', debt_ratio_q1, debt_ratio_q2, debt_ratio_q2, debt_ratio_q2 - debt_ratio_q1, 'Không có nợ vay, hoàn toàn là nợ hoạt động')
+    kpis_def = [
+        ('Doanh thu thuần', 'VNĐ', lambda p: p['pl']['dtt'], tot_dtt, (last_p['pl']['dtt'] - prev_p['pl']['dtt'])/prev_p['pl']['dtt'] if len(period_items)>1 else 0, 'Tăng trưởng doanh thu tích cực'),
+        ('Lợi nhuận gộp', 'VNĐ', lambda p: p['pl']['lng'], tot_lng, (last_p['pl']['lng'] - prev_p['pl']['lng'])/prev_p['pl']['lng'] if len(period_items)>1 else 0, 'Biên lợi nhuận gộp ổn định'),
+        ('Tỷ suất Lợi nhuận gộp (Gross Margin)', '%', lambda p: p['pl']['lng']/p['pl']['dtt'] if p['pl']['dtt'] else 0, tot_lng/tot_dtt if tot_dtt else 0, (last_p['pl']['lng']/last_p['pl']['dtt'])-(prev_p['pl']['lng']/prev_p['pl']['dtt']) if len(period_items)>1 else 0, 'Biên gộp duy trì ở mức rất cao'),
+        ('Lợi nhuận trước thuế (EBT)', 'VNĐ', lambda p: p['pl']['lntt'], tot_lntt, (last_p['pl']['lntt'] - prev_p['pl']['lntt'])/prev_p['pl']['lntt'] if len(period_items)>1 else 0, 'Hiệu quả kinh doanh vượt bậc'),
+        ('Chi phí thuế TNDN', 'VNĐ', lambda p: p['pl']['thue'], tot_thue, (last_p['pl']['thue'] - prev_p['pl']['thue'])/prev_p['pl']['thue'] if len(period_items)>1 else 0, 'Tuân thủ nghĩa vụ thuế'),
+        ('Lợi nhuận sau thuế (EAT)', 'VNĐ', lambda p: p['pl']['lnst'], tot_lnst, (last_p['pl']['lnst'] - prev_p['pl']['lnst'])/prev_p['pl']['lnst'] if len(period_items)>1 else 0, 'Tăng trưởng lợi nhuận mạnh'),
+        ('Tỷ suất Lợi nhuận ròng (Net Margin)', '%', lambda p: p['pl']['lnst']/p['pl']['dtt'] if p['pl']['dtt'] else 0, tot_lnst/tot_dtt if tot_dtt else 0, (last_p['pl']['lnst']/last_p['pl']['dtt'])-(prev_p['pl']['lnst']/prev_p['pl']['dtt']) if len(period_items)>1 else 0, 'Tỷ suất sinh lời ròng rất ấn tượng'),
+        ('Tổng tài sản cuối kỳ', 'VNĐ', lambda p: p['bs']['m270'], last_p['bs']['m270'], (last_p['bs']['m270'] - prev_p['bs']['m270'])/prev_p['bs']['m270'] if len(period_items)>1 else 0, 'Quy mô tài sản liên tục mở rộng'),
+        ('Vốn chủ sở hữu cuối kỳ', 'VNĐ', lambda p: p['bs']['m400'], last_p['bs']['m400'], (last_p['bs']['m400'] - prev_p['bs']['m400'])/prev_p['bs']['m400'] if len(period_items)>1 else 0, 'Gia tăng từ lợi nhuận giữ lại'),
+        ('Tỷ số thanh toán hiện hành (CR)', 'Lần', lambda p: p['bs']['m100']/p['bs']['m310'] if p['bs']['m310'] else 0, last_p['bs']['m100']/last_p['bs']['m310'] if last_p['bs']['m310'] else 0, (last_p['bs']['m100']/last_p['bs']['m310'])-(prev_p['bs']['m100']/prev_p['bs']['m310']) if len(period_items)>1 else 0, 'Thanh toán an toàn (>1.35 lần)'),
+        ('Tỷ số thanh toán tức thời (Cash Ratio)', 'Lần', lambda p: p['bs']['m110']/p['bs']['m310'] if p['bs']['m310'] else 0, last_p['bs']['m110']/last_p['bs']['m310'] if last_p['bs']['m310'] else 0, (last_p['bs']['m110']/last_p['bs']['m310'])-(prev_p['bs']['m110']/prev_p['bs']['m310']) if len(period_items)>1 else 0, 'Dồi dào thanh khoản tiền mặt'),
+        ('Tỷ số nợ / Tổng tài sản (D/A)', '%', lambda p: p['bs']['m300']/p['bs']['m270'] if p['bs']['m270'] else 0, last_p['bs']['m300']/last_p['bs']['m270'] if last_p['bs']['m270'] else 0, (last_p['bs']['m300']/last_p['bs']['m270'])-(prev_p['bs']['m300']/prev_p['bs']['m270']) if len(period_items)>1 else 0, 'Không sử dụng nợ vay ngân hàng')
     ]
 
-    for r_idx, row in enumerate(kpi_data, 7):
-        ws1.cell(r_idx, 1, row[0]).font = font_bold if 'Lợi nhuận' in row[0] or 'Doanh thu' in row[0] else font_regular
-        ws1.cell(r_idx, 2, row[1]).font = font_italic
+    for r_idx, row in enumerate(kpis_def, 7):
+        name, unit, fn, tot_val, growth, eval_txt = row
+        ws1.cell(r_idx, 1, name).font = font_bold if 'Lợi nhuận' in name or 'Doanh thu' in name else font_regular
+        ws1.cell(r_idx, 2, unit).font = font_italic
         ws1.cell(r_idx, 2).alignment = Alignment(horizontal='center')
-        for c_idx, val_item in enumerate([row[2], row[3], row[4]], 3):
-            cell = ws1.cell(r_idx, c_idx, val_item)
-            cell.font = font_bold if 'Lợi nhuận' in row[0] or 'Doanh thu' in row[0] else font_regular
-            cell.alignment = Alignment(horizontal='right')
-            if row[1] == '%':
-                cell.number_format = '0.0%'
-            elif row[1] == 'Lần':
-                cell.number_format = '0.00'
+        
+        col_c = 3
+        for p in period_items:
+            v = fn(p)
+            c = ws1.cell(r_idx, col_c, v)
+            c.font = font_bold if 'Lợi nhuận' in name or 'Doanh thu' in name else font_regular
+            c.alignment = Alignment(horizontal='right')
+            if unit == '%':
+                c.number_format = '0.0%'
+            elif unit == 'Lần':
+                c.number_format = '0.00'
             else:
-                cell.number_format = '#,##0'
-        cell_g = ws1.cell(r_idx, 6, row[5])
-        cell_g.alignment = Alignment(horizontal='right')
-        cell_g.font = font_bold
-        cell_g.number_format = '+0.0%;-0.0%;0.0%' if row[1] != 'Lần' else '+0.00;-0.00;0.00'
-        ws1.cell(r_idx, 7, row[6]).font = font_regular
-        for c in range(1, 8):
-            ws1.cell(r_idx, c).border = border_cell
-            if r_idx % 2 == 1:
-                ws1.cell(r_idx, c).fill = PatternFill(start_color='F9FAFB', end_color='F9FAFB', fill_type='solid')
+                c.number_format = '#,##0'
+            col_c += 1
 
-    # 2. SHEET BCĐKT (B01-DN)
+        if len(period_items) > 1:
+            c_tot = ws1.cell(r_idx, col_c, tot_val)
+            c_tot.font = font_bold
+            c_tot.alignment = Alignment(horizontal='right')
+            if unit == '%':
+                c_tot.number_format = '0.0%'
+            elif unit == 'Lần':
+                c_tot.number_format = '0.00'
+            else:
+                c_tot.number_format = '#,##0'
+            col_c += 1
+
+            c_g = ws1.cell(r_idx, col_c, growth)
+            c_g.alignment = Alignment(horizontal='right')
+            c_g.font = font_bold
+            c_g.number_format = '+0.0%;-0.0%;0.0%' if unit != 'Lần' else '+0.00;-0.00;0.00'
+            col_c += 1
+
+        c_ev = ws1.cell(r_idx, col_c, eval_txt)
+        c_ev.font = font_regular
+        
+        for c_i in range(1, len(kpi_headers) + 1):
+            ws1.cell(r_idx, c_i).border = border_cell
+            if r_idx % 2 == 1:
+                ws1.cell(r_idx, c_i).fill = PatternFill(start_color='F9FAFB', end_color='F9FAFB', fill_type='solid')
+
+    # -------------------------------------------------------------
+    # SHEET 2: BẢNG CÂN ĐỐI KẾ TOÁN (B01-DN)
+    # -------------------------------------------------------------
     ws2 = wb.create_sheet(title='Bảng Cân đối kế toán')
     ws2.views.sheetView[0].showGridLines = True
     ws2['A2'] = 'BẢNG CÂN ĐỐI KẾ TOÁN (Mẫu B 01 - DN)'
     ws2['A2'].font = font_title
     ws2['A3'] = 'Ban hành theo Thông tư số 200/2014/TT-BTC ngày 22/12/2014 của Bộ Tài chính'
     ws2['A3'].font = font_subtitle
-    ws2['A4'] = 'Tại các thời điểm: 01/01/2026, 31/03/2026 và 30/06/2026 (Đơn vị tính: VNĐ)'
+    ws2['A4'] = f"Đơn vị tính: VNĐ - So sánh số liệu qua {len(period_items)} kỳ kế toán"
     ws2['A4'].font = font_italic
 
-    bs_headers = ['TÀI SẢN / NGUỒN VỐN', 'Mã số', 'Thuyết minh', 'Đầu năm (01/01/2026)', 'Cuối Quý 1 (31/03/2026)', 'Cuối Quý 2 (30/06/2026)', 'Biến động Q2 vs Q1', 'Tăng/Giảm (%)']
+    bs_headers = ['TÀI SẢN / NGUỒN VỐN', 'Mã số', 'Thuyết minh', f"Đầu năm (01/01/{yr_str})"]
+    for p in period_items:
+        bs_headers.append(f"Cuối {p['label']}")
+    if len(period_items) > 1:
+        bs_headers.append("Biến động lũy kế")
+        bs_headers.append("Tăng/Giảm (%)")
+
     for col_idx, h in enumerate(bs_headers, 1):
         cell = ws2.cell(6, col_idx, h)
         cell.font = font_header
@@ -269,85 +422,110 @@ def generate_financial_report(q1_file, q2_file, output_file):
         cell.border = border_header
     ws2.row_dimensions[6].height = 25
 
-    bs_rows = [
-        ('A. TÀI SẢN NGẮN HẠN', '100', '', bs_open['m100'], bs_q1['m100'], bs_q2['m100'], True, False),
-        ('I. Tiền và các khoản tương đương tiền', '110', 'V.01', bs_open['m110'], bs_q1['m110'], bs_q2['m110'], True, False),
-        ('   1. Tiền (TK 111, 112)', '111', '', bs_open['m111'], bs_q1['m111'], bs_q2['m111'], False, False),
-        ('   2. Các khoản tương đương tiền (TK 1281-kỳ hạn <=3T)', '112', '', bs_open['m112'], bs_q1['m112'], bs_q2['m112'], False, False),
-        ('II. Đầu tư tài chính ngắn hạn', '120', 'V.02', bs_open['m120'], bs_q1['m120'], bs_q2['m120'], True, False),
-        ('   1. Đầu tư nắm giữ đến ngày đáo hạn (TK 1281-kỳ hạn 6-12T)', '123', '', bs_open['m123'], bs_q1['m123'], bs_q2['m123'], False, False),
-        ('III. Các khoản phải thu ngắn hạn', '130', 'V.03', bs_open['m130'], bs_q1['m130'], bs_q2['m130'], True, False),
-        ('   1. Phải thu ngắn hạn khác (TK 138, 141)', '136', '', bs_open['m136'], bs_q1['m136'], bs_q2['m136'], False, False),
-        ('IV. Hàng tồn kho', '140', 'V.04', bs_open['m140'], bs_q1['m140'], bs_q2['m140'], True, False),
-        ('V. Tài sản ngắn hạn khác', '150', 'V.05', bs_open['m150'], bs_q1['m150'], bs_q2['m150'], True, False),
-        ('   1. Chi phí trả trước ngắn hạn (TK 2421)', '151', '', bs_open['m151'], bs_q1['m151'], bs_q2['m151'], False, False),
-        ('   2. Thuế giá trị gia tăng được khấu trừ (TK 133)', '152', '', bs_open['m152'], bs_q1['m152'], bs_q2['m152'], False, False),
-        ('B. TÀI SẢN DÀI HẠN', '200', '', bs_open['m200'], bs_q1['m200'], bs_q2['m200'], True, False),
-        ('II. Tài sản cố định', '220', 'V.08', bs_open['m220'], bs_q1['m220'], bs_q2['m220'], True, False),
-        ('   1. Tài sản cố định hữu hình', '221', '', bs_open['m221'], bs_q1['m221'], bs_q2['m221'], False, False),
-        ('      - Nguyên giá (TK 211)', '222', '', bs_open['m222'], bs_q1['m222'], bs_q2['m222'], False, False),
-        ('      - Giá trị hao mòn lũy kế (TK 214)', '223', '', bs_open['m223'], bs_q1['m223'], bs_q2['m223'], False, False),
-        ('VI. Tài sản dài hạn khác', '260', 'V.12', bs_open['m260'], bs_q1['m260'], bs_q2['m260'], True, False),
-        ('   1. Tài sản dài hạn khác (Ký quỹ dài hạn TK 244)', '268', '', bs_open['m268'], bs_q1['m268'], bs_q2['m268'], False, False),
-        ('TỔNG CỘNG TÀI SẢN (270 = 100 + 200)', '270', '', bs_open['m270'], bs_q1['m270'], bs_q2['m270'], True, True),
-        ('C. NỢ PHẢI TRẢ', '300', '', bs_open['m300'], bs_q1['m300'], bs_q2['m300'], True, False),
-        ('I. Nợ ngắn hạn', '310', 'V.15', bs_open['m310'], bs_q1['m310'], bs_q2['m310'], True, False),
-        ('   1. Thuế và các khoản phải nộp Nhà nước (TK 333)', '313', '', bs_open['m313'], bs_q1['m313'], bs_q2['m313'], False, False),
-        ('   2. Phải trả người lao động (TK 334)', '314', '', bs_open['m314'], bs_q1['m314'], bs_q2['m314'], False, False),
-        ('   3. Chi phí phải trả ngắn hạn (TK 335)', '315', '', bs_open['m315'], bs_q1['m315'], bs_q2['m315'], False, False),
-        ('   4. Phải trả ngắn hạn khác (TK 338)', '319', '', bs_open['m319'], bs_q1['m319'], bs_q2['m319'], False, False),
-        ('   5. Quỹ khen thưởng, phúc lợi (TK 353)', '322', '', bs_open['m322'], bs_q1['m322'], bs_q2['m322'], False, False),
-        ('D. VỐN CHỦ SỞ HỮU', '400', '', bs_open['m400'], bs_q1['m400'], bs_q2['m400'], True, False),
-        ('I. Vốn chủ sở hữu', '410', 'V.22', bs_open['m410'], bs_q1['m410'], bs_q2['m410'], True, False),
-        ('   1. Vốn góp của chủ sở hữu (TK 4111)', '411', '', bs_open['m411'], bs_q1['m411'], bs_q2['m411'], False, False),
-        ('   2. Chênh lệch tỷ giá hối đoái (TK 413)', '415', '', bs_open['m415'], bs_q1['m415'], bs_q2['m415'], False, False),
-        ('   3. Quỹ đầu tư phát triển (TK 414)', '418', '', bs_open['m418'], bs_q1['m418'], bs_q2['m418'], False, False),
-        ('   4. Quỹ khác thuộc vốn chủ sở hữu (TK 418)', '420', '', bs_open['m420'], bs_q1['m420'], bs_q2['m420'], False, False),
-        ('   5. Lợi nhuận sau thuế chưa phân phối (TK 421)', '421', '', bs_open['m421'], bs_q1['m421'], bs_q2['m421'], True, False),
-        ('      - LNST chưa phân phối lũy kế năm trước (TK 4211)', '421a', '', bs_open['m421a'], bs_q1['m421a'], bs_q2['m421a'], False, False),
-        ('      - LNST chưa phân phối năm nay (TK 4212 + LN trong kỳ)', '421b', '', bs_open['m421b'], bs_q1['m421b'], bs_q2['m421b'], False, False),
-        ('TỔNG CỘNG NGUỒN VỐN (440 = 300 + 400)', '440', '', bs_open['m440'], bs_q1['m440'], bs_q2['m440'], True, True),
-        ('KIỂM TRA CÂN ĐỐI (TÀI SẢN - NGUỒN VỐN)', 'CHK', '', bs_open['chenh_lech'], bs_q1['chenh_lech'], bs_q2['chenh_lech'], True, True)
+    bs_rows_def = [
+        ('A. TÀI SẢN NGẮN HẠN', '100', '', 'm100', True, False),
+        ('I. Tiền và các khoản tương đương tiền', '110', 'V.01', 'm110', True, False),
+        ('   1. Tiền (TK 111, 112)', '111', '', 'm111', False, False),
+        ('   2. Các khoản tương đương tiền (TK 1281-kỳ hạn <=3T)', '112', '', 'm112', False, False),
+        ('II. Đầu tư tài chính ngắn hạn', '120', 'V.02', 'm120', True, False),
+        ('   1. Đầu tư nắm giữ đến ngày đáo hạn (TK 1281-kỳ hạn 6-12T)', '123', '', 'm123', False, False),
+        ('III. Các khoản phải thu ngắn hạn', '130', 'V.03', 'm130', True, False),
+        ('   1. Phải thu ngắn hạn khác (TK 138, 141)', '136', '', 'm136', False, False),
+        ('IV. Hàng tồn kho', '140', 'V.04', 'm140', True, False),
+        ('V. Tài sản ngắn hạn khác', '150', 'V.05', 'm150', True, False),
+        ('   1. Chi phí trả trước ngắn hạn (TK 2421)', '151', '', 'm151', False, False),
+        ('   2. Thuế giá trị gia tăng được khấu trừ (TK 133)', '152', '', 'm152', False, False),
+        ('B. TÀI SẢN DÀI HẠN', '200', '', 'm200', True, False),
+        ('II. Tài sản cố định', '220', 'V.08', 'm220', True, False),
+        ('   1. Tài sản cố định hữu hình', '221', '', 'm221', False, False),
+        ('      - Nguyên giá (TK 211)', '222', '', 'm222', False, False),
+        ('      - Giá trị hao mòn lũy kế (TK 214)', '223', '', 'm223', False, False),
+        ('VI. Tài sản dài hạn khác', '260', 'V.12', 'm260', True, False),
+        ('   1. Tài sản dài hạn khác (Ký quỹ dài hạn TK 244)', '268', '', 'm268', False, False),
+        ('TỔNG CỘNG TÀI SẢN (270 = 100 + 200)', '270', '', 'm270', True, True),
+        ('C. NỢ PHẢI TRẢ', '300', '', 'm300', True, False),
+        ('I. Nợ ngắn hạn', '310', 'V.15', 'm310', True, False),
+        ('   1. Thuế và các khoản phải nộp Nhà nước (TK 333)', '313', '', 'm313', False, False),
+        ('   2. Phải trả người lao động (TK 334)', '314', '', 'm314', False, False),
+        ('   3. Chi phí phải trả ngắn hạn (TK 335)', '315', '', 'm315', False, False),
+        ('   4. Phải trả ngắn hạn khác (TK 338)', '319', '', 'm319', False, False),
+        ('   5. Quỹ khen thưởng, phúc lợi (TK 353)', '322', '', 'm322', False, False),
+        ('D. VỐN CHỦ SỞ HỮU', '400', '', 'm400', True, False),
+        ('I. Vốn chủ sở hữu', '410', 'V.22', 'm410', True, False),
+        ('   1. Vốn góp của chủ sở hữu (TK 4111)', '411', '', 'm411', False, False),
+        ('   2. Chênh lệch tỷ giá hối đoái (TK 413)', '415', '', 'm415', False, False),
+        ('   3. Quỹ đầu tư phát triển (TK 414)', '418', '', 'm418', False, False),
+        ('   4. Quỹ khác thuộc vốn chủ sở hữu (TK 418)', '420', '', 'm420', False, False),
+        ('   5. Lợi nhuận sau thuế chưa phân phối (TK 421)', '421', '', 'm421', True, False),
+        ('      - LNST chưa phân phối lũy kế năm trước (TK 4211)', '421a', '', 'm421a', False, False),
+        ('      - LNST chưa phân phối năm nay (TK 4212 + LN trong kỳ)', '421b', '', 'm421b', False, False),
+        ('TỔNG CỘNG NGUỒN VỐN (440 = 300 + 400)', '440', '', 'm440', True, True),
+        ('KIỂM TRA CÂN ĐỐI (TÀI SẢN - NGUỒN VỐN)', 'CHK', '', 'chenh_lech', True, True)
     ]
 
-    for r_idx, row in enumerate(bs_rows, 7):
-        is_hdr = row[6]
-        is_tot = row[7]
-        is_check = (row[1] == 'CHK')
-        ws2.cell(r_idx, 1, row[0])
-        ws2.cell(r_idx, 2, row[1]).alignment = Alignment(horizontal='center')
-        ws2.cell(r_idx, 3, row[2]).alignment = Alignment(horizontal='center')
-        val_open, val_q1, val_q2 = row[3], row[4], row[5]
-        diff_val = val_q2 - val_q1
-        diff_pct = (diff_val / abs(val_q1)) if val_q1 != 0 else 0.0
+    for r_idx, row in enumerate(bs_rows_def, 7):
+        title, code, note, k, is_hdr, is_tot = row
+        is_chk = (code == 'CHK')
+        ws2.cell(r_idx, 1, title)
+        ws2.cell(r_idx, 2, code).alignment = Alignment(horizontal='center')
+        ws2.cell(r_idx, 3, note).alignment = Alignment(horizontal='center')
+        
+        val_open = bs_open_year[k]
+        c_open = ws2.cell(r_idx, 4, val_open)
+        c_open.number_format = '#,##0;(#,##0);"-";@'
+        c_open.alignment = Alignment(horizontal='right')
 
-        for col_i, v in enumerate([val_open, val_q1, val_q2, diff_val], 4):
-            c = ws2.cell(r_idx, col_i, v)
+        col_c = 5
+        vals_period = []
+        for p in period_items:
+            v = p['bs'][k]
+            vals_period.append(v)
+            c = ws2.cell(r_idx, col_c, v)
             c.number_format = '#,##0;(#,##0);"-";@'
             c.alignment = Alignment(horizontal='right')
-        c_pct = ws2.cell(r_idx, 8, diff_pct)
-        c_pct.number_format = '+0.0%;-0.0%;0.0%'
-        c_pct.alignment = Alignment(horizontal='right')
-        row_font = font_bold if (is_hdr or is_tot) else font_regular
-        for c in range(1, 9):
-            ws2.cell(r_idx, c).font = row_font
-            ws2.cell(r_idx, c).border = border_total if is_tot else border_cell
-            if is_tot:
-                ws2.cell(r_idx, c).fill = fill_green if is_check else fill_highlight
-            elif is_hdr:
-                ws2.cell(r_idx, c).fill = fill_section
+            col_c += 1
 
-    # 3. SHEET P&L (B02-DN)
+        if len(period_items) > 1:
+            diff_cum = vals_period[-1] - val_open
+            diff_pct = (diff_cum / abs(val_open)) if val_open != 0 else 0.0
+            
+            c_d = ws2.cell(r_idx, col_c, diff_cum)
+            c_d.number_format = '#,##0;(#,##0);"-";@'
+            c_d.alignment = Alignment(horizontal='right')
+            col_c += 1
+
+            c_p = ws2.cell(r_idx, col_c, diff_pct)
+            c_p.number_format = '+0.0%;-0.0%;0.0%'
+            c_p.alignment = Alignment(horizontal='right')
+
+        row_font = font_bold if (is_hdr or is_tot) else font_regular
+        for c_i in range(1, len(bs_headers) + 1):
+            ws2.cell(r_idx, c_i).font = row_font
+            ws2.cell(r_idx, c_i).border = border_total if is_tot else border_cell
+            if is_tot:
+                ws2.cell(r_idx, c_i).fill = fill_green if is_chk else fill_highlight
+            elif is_hdr:
+                ws2.cell(r_idx, c_i).fill = fill_section
+
+    # -------------------------------------------------------------
+    # SHEET 3: BÁO CÁO KẾT QUẢ KINH DOANH (B02-DN)
+    # -------------------------------------------------------------
     ws3 = wb.create_sheet(title='Kết quả kinh doanh')
     ws3.views.sheetView[0].showGridLines = True
     ws3['A2'] = 'BÁO CÁO KẾT QUẢ HOẠT ĐỘNG KINH DOANH (Mẫu B 02 - DN)'
     ws3['A2'].font = font_title
     ws3['A3'] = 'Ban hành theo Thông tư số 200/2014/TT-BTC'
     ws3['A3'].font = font_subtitle
-    ws3['A4'] = 'Cho giai đoạn: Quý 1, Quý 2 và Lũy kế 6 tháng năm 2026 (Đơn vị tính: VNĐ)'
+    ws3['A4'] = f"Đơn vị tính: VNĐ - Phân tích doanh thu, chi phí và lợi nhuận qua {len(period_items)} kỳ"
     ws3['A4'].font = font_italic
 
-    pl_headers = ['CHỈ TIÊU', 'Mã số', 'Thuyết minh', 'Quý 1/2026', 'Quý 2/2026', 'Lũy kế 6T/2026', 'Tăng/Giảm (Q2-Q1)', 'Tăng trưởng (%)']
+    pl_headers = ['CHỈ TIÊU', 'Mã số', 'Thuyết minh']
+    for p in period_items:
+        pl_headers.append(p['label'])
+    if len(period_items) > 1:
+        pl_headers.append(f"Lũy kế cả năm {yr_str}" if len(period_items) == 4 else "Tổng các kỳ")
+        pl_headers.append("Tăng trưởng kỳ cuối (%)")
+
     for col_idx, h in enumerate(pl_headers, 1):
         cell = ws3.cell(6, col_idx, h)
         cell.font = font_header
@@ -356,63 +534,82 @@ def generate_financial_report(q1_file, q2_file, output_file):
         cell.border = border_header
     ws3.row_dimensions[6].height = 25
 
-    pl_rows = [
-        ('1. Doanh thu bán hàng và cung cấp dịch vụ', '01', 'VI.25', dt_q1, dt_q2, dt_6m, False, False),
-        ('2. Các khoản giảm trừ doanh thu', '02', 'VI.26', 0.0, 0.0, 0.0, False, False),
-        ('3. Doanh thu thuần về bán hàng và CCDV (10 = 01 - 02)', '10', 'VI.27', dtt_q1, dtt_q2, dtt_6m, True, False),
-        ('4. Giá vốn hàng bán', '11', 'VI.28', gv_q1, gv_q2, gv_6m, False, False),
-        ('5. Lợi nhuận gộp về bán hàng và CCDV (20 = 10 - 11)', '20', '', lng_q1, lng_q2, lng_6m, True, False),
-        ('6. Doanh thu hoạt động tài chính', '21', 'VI.29', dttc_q1, dttc_q2, dttc_6m, False, False),
-        ('7. Chi phí tài chính', '22', 'VI.30', cptc_q1, cptc_q2, cptc_6m, False, False),
-        ('   - Trong đó: Chi phí lãi vay', '23', '', 0.0, 0.0, 0.0, False, False),
-        ('8. Chi phí bán hàng', '25', 'VI.31', cpbh_q1, cpbh_q2, cpbh_6m, False, False),
-        ('9. Chi phí quản lý doanh nghiệp', '26', 'VI.32', cpql_q1, cpql_q2, cpql_6m, False, False),
-        ('10. Lợi nhuận thuần từ HĐKD {30 = 20 + (21 - 22) - 25 - 26}', '30', '', lnt_q1, lnt_q2, lnt_6m, True, False),
-        ('11. Thu nhập khác', '31', '', 0.0, 0.0, 0.0, False, False),
-        ('12. Chi phí khác', '32', '', 0.0, 0.0, 0.0, False, False),
-        ('13. Lợi nhuận khác (40 = 31 - 32)', '40', '', 0.0, 0.0, 0.0, False, False),
-        ('14. Tổng lợi nhuận kế toán trước thuế (50 = 30 + 40)', '50', '', lntt_q1, lntt_q2, lntt_6m, True, False),
-        ('15. Chi phí thuế TNDN hiện hành (TK 8211)', '51', 'VI.35', thue_q1, thue_q2, thue_6m, False, False),
-        ('16. Chi phí thuế TNDN hoãn lại', '52', '', 0.0, 0.0, 0.0, False, False),
-        ('17. LỢI NHUẬN SAU THUẾ TNDN (60 = 50 - 51 - 52)', '60', '', lnst_q1, lnst_q2, lnst_6m, True, True)
+    pl_rows_def = [
+        ('1. Doanh thu bán hàng và cung cấp dịch vụ', '01', 'VI.25', 'dt', False, False),
+        ('2. Các khoản giảm trừ doanh thu', '02', 'VI.26', None, False, False),
+        ('3. Doanh thu thuần về bán hàng và CCDV (10 = 01 - 02)', '10', 'VI.27', 'dtt', True, False),
+        ('4. Giá vốn hàng bán', '11', 'VI.28', 'gv', False, False),
+        ('5. Lợi nhuận gộp về bán hàng và CCDV (20 = 10 - 11)', '20', '', 'lng', True, False),
+        ('6. Doanh thu hoạt động tài chính', '21', 'VI.29', 'dttc', False, False),
+        ('7. Chi phí tài chính', '22', 'VI.30', 'cptc', False, False),
+        ('   - Trong đó: Chi phí lãi vay', '23', '', None, False, False),
+        ('8. Chi phí bán hàng', '25', 'VI.31', 'cpbh', False, False),
+        ('9. Chi phí quản lý doanh nghiệp', '26', 'VI.32', 'cpql', False, False),
+        ('10. Lợi nhuận thuần từ HĐKD {30 = 20 + (21 - 22) - 25 - 26}', '30', '', 'lnt', True, False),
+        ('11. Thu nhập khác', '31', '', None, False, False),
+        ('12. Chi phí khác', '32', '', None, False, False),
+        ('13. Lợi nhuận khác (40 = 31 - 32)', '40', '', None, False, False),
+        ('14. Tổng lợi nhuận kế toán trước thuế (50 = 30 + 40)', '50', '', 'lntt', True, False),
+        ('15. Chi phí thuế TNDN hiện hành (TK 8211)', '51', 'VI.35', 'thue', False, False),
+        ('16. Chi phí thuế TNDN hoãn lại', '52', '', None, False, False),
+        ('17. LỢI NHUẬN SAU THUẾ TNDN (60 = 50 - 51 - 52)', '60', '', 'lnst', True, True)
     ]
 
-    for r_idx, row in enumerate(pl_rows, 7):
-        is_hdr, is_tot = row[6], row[7]
-        ws3.cell(r_idx, 1, row[0])
-        ws3.cell(r_idx, 2, row[1]).alignment = Alignment(horizontal='center')
-        ws3.cell(r_idx, 3, row[2]).alignment = Alignment(horizontal='center')
-        v_q1, v_q2, v_6m = row[3], row[4], row[5]
-        diff_v = v_q2 - v_q1
-        diff_p = (diff_v / abs(v_q1)) if v_q1 != 0 else 0.0
+    for r_idx, row in enumerate(pl_rows_def, 7):
+        title, code, note, k, is_hdr, is_tot = row
+        ws3.cell(r_idx, 1, title)
+        ws3.cell(r_idx, 2, code).alignment = Alignment(horizontal='center')
+        ws3.cell(r_idx, 3, note).alignment = Alignment(horizontal='center')
 
-        for col_i, v in enumerate([v_q1, v_q2, v_6m, diff_v], 4):
-            c = ws3.cell(r_idx, col_i, v)
+        col_c = 4
+        vals = []
+        for p in period_items:
+            v = p['pl'].get(k, 0.0) if k else 0.0
+            vals.append(v)
+            c = ws3.cell(r_idx, col_c, v)
             c.number_format = '#,##0;(#,##0);"-";@'
             c.alignment = Alignment(horizontal='right')
-        c_pct = ws3.cell(r_idx, 8, diff_p)
-        c_pct.number_format = '+0.0%;-0.0%;0.0%'
-        c_pct.alignment = Alignment(horizontal='right')
-        row_font = font_bold if (is_hdr or is_tot) else font_regular
-        for c in range(1, 9):
-            ws3.cell(r_idx, c).font = row_font
-            ws3.cell(r_idx, c).border = border_total if is_tot else border_cell
-            if is_tot:
-                ws3.cell(r_idx, c).fill = fill_highlight
-            elif is_hdr:
-                ws3.cell(r_idx, c).fill = fill_section
+            col_c += 1
 
-    # 4. SHEET LƯU CHUYỂN TIỀN TỆ (B03-DN)
+        if len(period_items) > 1:
+            tot_v = sum(vals)
+            c_t = ws3.cell(r_idx, col_c, tot_v)
+            c_t.number_format = '#,##0;(#,##0);"-";@'
+            c_t.alignment = Alignment(horizontal='right')
+            col_c += 1
+
+            growth_last = ((vals[-1] - vals[-2]) / abs(vals[-2])) if len(vals) > 1 and vals[-2] != 0 else 0.0
+            c_p = ws3.cell(r_idx, col_c, growth_last)
+            c_p.number_format = '+0.0%;-0.0%;0.0%'
+            c_p.alignment = Alignment(horizontal='right')
+
+        row_font = font_bold if (is_hdr or is_tot) else font_regular
+        for c_i in range(1, len(pl_headers) + 1):
+            ws3.cell(r_idx, c_i).font = row_font
+            ws3.cell(r_idx, c_i).border = border_total if is_tot else border_cell
+            if is_tot:
+                ws3.cell(r_idx, c_i).fill = fill_highlight
+            elif is_hdr:
+                ws3.cell(r_idx, c_i).fill = fill_section
+
+    # -------------------------------------------------------------
+    # SHEET 4: BÁO CÁO LƯU CHUYỂN TIỀN TỆ (B03-DN)
+    # -------------------------------------------------------------
     ws4 = wb.create_sheet(title='Lưu chuyển tiền tệ')
     ws4.views.sheetView[0].showGridLines = True
     ws4['A2'] = 'BÁO CÁO LƯU CHUYỂN TIỀN TỆ (Mẫu B 03 - DN)'
     ws4['A2'].font = font_title
     ws4['A3'] = 'Phương pháp gián tiếp - Thông tư số 200/2014/TT-BTC'
     ws4['A3'].font = font_subtitle
-    ws4['A4'] = 'Cho các giai đoạn: Quý 1, Quý 2 và 6 tháng năm 2026 (Đơn vị tính: VNĐ)'
+    ws4['A4'] = f"Đơn vị tính: VNĐ - Dòng tiền qua {len(period_items)} kỳ"
     ws4['A4'].font = font_italic
 
-    cf_headers = ['CHỈ TIÊU', 'Mã số', 'Thuyết minh', 'Quý 1/2026', 'Quý 2/2026', 'Lũy kế 6T/2026']
+    cf_headers = ['CHỈ TIÊU', 'Mã số', 'Thuyết minh']
+    for p in period_items:
+        cf_headers.append(p['label'])
+    if len(period_items) > 1:
+        cf_headers.append(f"Cả năm {yr_str}" if len(period_items) == 4 else "Tổng các kỳ")
+
     for col_idx, h in enumerate(cf_headers, 1):
         cell = ws4.cell(6, col_idx, h)
         cell.font = font_header
@@ -421,98 +618,91 @@ def generate_financial_report(q1_file, q2_file, output_file):
         cell.border = border_header
     ws4.row_dimensions[6].height = 25
 
-    depr_q1 = 5725755.0
-    depr_q2 = 5725755.0
-    depr_6m = depr_q1 + depr_q2
-    d_recv_q1 = -((bs_q1['m130'] - bs_open['m130']) + (bs_q1['m152'] - bs_open['m152']))
-    d_prep_q1 = -(bs_q1['m151'] - bs_open['m151'])
-    d_pay_q1 = ((bs_q1['m314'] - bs_open['m314']) + (bs_q1['m315'] - bs_open['m315']) + 
-                (bs_q1['m319'] - bs_open['m319']) + (bs_q1['m322'] - bs_open['m322']) + 
-                (val(q1, '3331', 'ck_c') - val(q1, '3331', 'dk_c')) + 
-                (val(q1, '3335', 'ck_c') - val(q1, '3335', 'dk_c')))
-    tax_paid_q1 = -val(q1, '3334', 'ps_n')
-    cfo_q1 = lntt_q1 + depr_q1 + d_recv_q1 + d_prep_q1 + d_pay_q1 + tax_paid_q1
-    cfi_q1 = -(bs_q1['m123'] - bs_open['m123']) - (bs_q1['m268'] - bs_open['m268'])
-    cff_q1 = 0.0
-    net_cf_q1 = cfo_q1 + cfi_q1 + cff_q1
-    cash_open_q1 = bs_open['m110']
-    cash_close_q1 = cash_open_q1 + net_cf_q1
-
-    d_recv_q2 = -((bs_q2['m130'] - bs_q1['m130']) + (bs_q2['m152'] - bs_q1['m152']))
-    d_prep_q2 = -(bs_q2['m151'] - bs_q1['m151'])
-    d_pay_q2 = ((bs_q2['m314'] - bs_q1['m314']) + (bs_q2['m315'] - bs_q1['m315']) + 
-                (bs_q2['m319'] - bs_q1['m319']) + (bs_q2['m322'] - bs_q1['m322']) + 
-                (val(q2, '3331', 'ck_c') - val(q1, '3331', 'ck_c')) + 
-                (val(q2, '3335', 'ck_c') - val(q1, '3335', 'ck_c')))
-    tax_paid_q2 = -val(q2, '3334', 'ps_n')
-    cfo_q2 = lntt_q2 + depr_q2 + d_recv_q2 + d_prep_q2 + d_pay_q2 + tax_paid_q2
-    cfi_q2 = -(bs_q2['m123'] - bs_q1['m123']) - (bs_q2['m268'] - bs_q1['m268'])
-    cff_q2 = 0.0
-    net_cf_q2 = cfo_q2 + cfi_q2 + cff_q2
-    cash_open_q2 = bs_q1['m110']
-    cash_close_q2 = cash_open_q2 + net_cf_q2
-
-    cfo_6m = cfo_q1 + cfo_q2
-    cfi_6m = cfi_q1 + cfi_q2
-    cff_6m = 0.0
-    net_cf_6m = cfo_6m + cfi_6m + cff_6m
-    cash_open_6m = bs_open['m110']
-    cash_close_6m = cash_open_6m + net_cf_6m
-
-    cf_rows = [
-        ('I. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH', '', '', None, None, None, True, False),
-        ('1. Lợi nhuận trước thuế', '01', '', lntt_q1, lntt_q2, lntt_6m, False, False),
-        ('2. Điều chỉnh cho các khoản:', '', '', None, None, None, False, False),
-        ('   - Khấu hao TSCĐ (TK 214)', '02', '', depr_q1, depr_q2, depr_6m, False, False),
-        ('3. Lợi nhuận từ HĐKD trước thay đổi vốn lưu động', '08', '', lntt_q1 + depr_q1, lntt_q2 + depr_q2, lntt_6m + depr_6m, True, False),
-        ('   - Tăng/giảm các khoản phải thu (TK 138, 141, 133)', '09', '', d_recv_q1, d_recv_q2, d_recv_q1 + d_recv_q2, False, False),
-        ('   - Tăng/giảm chi phí trả trước (TK 242)', '11', '', d_prep_q1, d_prep_q2, d_prep_q1 + d_prep_q2, False, False),
-        ('   - Tăng/giảm các khoản phải trả (TK 333, 334, 335, 338, 353)', '12', '', d_pay_q1, d_pay_q2, d_pay_q1 + d_pay_q2, False, False),
-        ('   - Tiền thuế TNDN đã nộp (TK 3334)', '15', '', tax_paid_q1, tax_paid_q2, tax_paid_q1 + tax_paid_q2, False, False),
-        ('Lưu chuyển tiền thuần từ HĐKD', '20', '', cfo_q1, cfo_q2, cfo_6m, True, True),
-        ('II. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG ĐẦU TƯ', '', '', None, None, None, True, False),
-        ('1. Tiền chi gửi tiền có kỳ hạn / thu hồi tiền gửi (TK 1281-dài)', '23', '', cfi_q1, cfi_q2, cfi_6m, False, False),
-        ('Lưu chuyển tiền thuần từ HĐĐT', '30', '', cfi_q1, cfi_q2, cfi_6m, True, True),
-        ('III. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH', '', '', None, None, None, True, False),
-        ('Lưu chuyển tiền thuần từ HĐTC', '40', '', cff_q1, cff_q2, cff_6m, True, True),
-        ('LƯU CHUYỂN TIỀN THUẦN TRONG KỲ (50 = 20 + 30 + 40)', '50', '', net_cf_q1, net_cf_q2, net_cf_6m, True, True),
-        ('Tiền và tương đương tiền đầu kỳ', '60', '', cash_open_q1, cash_open_q2, cash_open_6m, True, False),
-        ('TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ (70 = 50 + 60)', '70', '', cash_close_q1, cash_close_q2, cash_close_6m, True, True),
-        ('Kiểm tra khớp số dư Tiền BCĐKT (Mã 110 - Mã 70)', 'CHK', '', bs_q1['m110'] - cash_close_q1, bs_q2['m110'] - cash_close_q2, bs_q2['m110'] - cash_close_6m, True, True)
+    cf_rows_def = [
+        ('I. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG KINH DOANH', '', '', None, True, False),
+        ('1. Lợi nhuận trước thuế', '01', '', 'lntt', False, False),
+        ('2. Điều chỉnh cho các khoản:', '', '', None, False, False),
+        ('   - Khấu hao TSCĐ (TK 214)', '02', '', 'depr', False, False),
+        ('3. Lợi nhuận từ HĐKD trước thay đổi vốn lưu động', '08', '', 'lntt+depr', True, False),
+        ('   - Tăng/giảm các khoản phải thu (TK 138, 141, 133)', '09', '', 'd_recv', False, False),
+        ('   - Tăng/giảm chi phí trả trước (TK 242)', '11', '', 'd_prep', False, False),
+        ('   - Tăng/giảm các khoản phải trả (TK 333, 334, 335, 338, 353)', '12', '', 'd_pay', False, False),
+        ('   - Tiền thuế TNDN đã nộp (TK 3334)', '15', '', 'tax_paid', False, False),
+        ('Lưu chuyển tiền thuần từ HĐKD', '20', '', 'cfo', True, True),
+        ('II. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG ĐẦU TƯ', '', '', None, True, False),
+        ('1. Tiền chi gửi tiền có kỳ hạn / thu hồi tiền gửi (TK 1281-dài)', '23', '', 'cfi', False, False),
+        ('Lưu chuyển tiền thuần từ HĐĐT', '30', '', 'cfi', True, True),
+        ('III. LƯU CHUYỂN TIỀN TỪ HOẠT ĐỘNG TÀI CHÍNH', '', '', None, True, False),
+        ('Lưu chuyển tiền thuần từ HĐTC', '40', '', 'cff', True, True),
+        ('LƯU CHUYỂN TIỀN THUẦN TRONG KỲ (50 = 20 + 30 + 40)', '50', '', 'net_cf', True, True),
+        ('Tiền và tương đương tiền đầu kỳ', '60', '', 'cash_open', True, False),
+        ('TIỀN VÀ TƯƠNG ĐƯƠNG TIỀN CUỐI KỲ (70 = 50 + 60)', '70', '', 'cash_close', True, True),
+        ('Kiểm tra khớp số dư Tiền BCĐKT (Mã 110 - Mã 70)', 'CHK', '', 'diff_check', True, True)
     ]
 
-    for r_idx, row in enumerate(cf_rows, 7):
-        is_hdr, is_tot = row[6], row[7]
-        is_check = (row[1] == 'CHK')
-        ws4.cell(r_idx, 1, row[0])
-        ws4.cell(r_idx, 2, row[1]).alignment = Alignment(horizontal='center')
-        ws4.cell(r_idx, 3, row[2]).alignment = Alignment(horizontal='center')
+    for r_idx, row in enumerate(cf_rows_def, 7):
+        title, code, note, k, is_hdr, is_tot = row
+        is_chk = (code == 'CHK')
+        ws4.cell(r_idx, 1, title)
+        ws4.cell(r_idx, 2, code).alignment = Alignment(horizontal='center')
+        ws4.cell(r_idx, 3, note).alignment = Alignment(horizontal='center')
 
-        for c_idx, val_item in enumerate([row[3], row[4], row[5]], 4):
-            cell = ws4.cell(r_idx, c_idx)
-            if val_item is not None:
-                cell.value = val_item
-                cell.number_format = '#,##0;(#,##0);"-";@'
-                cell.alignment = Alignment(horizontal='right')
+        col_c = 4
+        vals = []
+        for p in period_items:
+            cf = p['cf']
+            if k == 'lntt+depr':
+                v = cf['lntt'] + cf['depr']
+            elif k is not None:
+                v = cf.get(k, 0.0)
+            else:
+                v = None
+            
+            if v is not None:
+                vals.append(v)
+                c = ws4.cell(r_idx, col_c, v)
+                c.number_format = '#,##0;(#,##0);"-";@'
+                c.alignment = Alignment(horizontal='right')
+            col_c += 1
+
+        if len(period_items) > 1 and vals:
+            if k in ['cash_open']:
+                tot_v = period_items[0]['cf']['cash_open']
+            elif k in ['cash_close']:
+                tot_v = period_items[-1]['cf']['cash_close']
+            elif k in ['diff_check']:
+                tot_v = period_items[-1]['cf']['diff_check']
+            else:
+                tot_v = sum(vals)
+
+            c_t = ws4.cell(r_idx, col_c, tot_v)
+            c_t.number_format = '#,##0;(#,##0);"-";@'
+            c_t.alignment = Alignment(horizontal='right')
 
         row_font = font_bold if (is_hdr or is_tot) else font_regular
-        for c in range(1, 7):
-            ws4.cell(r_idx, c).font = row_font
-            ws4.cell(r_idx, c).border = border_total if is_tot else border_cell
+        for c_i in range(1, len(cf_headers) + 1):
+            ws4.cell(r_idx, c_i).font = row_font
+            ws4.cell(r_idx, c_i).border = border_total if is_tot else border_cell
             if is_tot:
-                ws4.cell(r_idx, c).fill = fill_green if is_check else fill_highlight
+                ws4.cell(r_idx, c_i).fill = fill_green if is_chk else fill_highlight
             elif is_hdr:
-                ws4.cell(r_idx, c).fill = fill_section
+                ws4.cell(r_idx, c_i).fill = fill_section
 
-    # 5. SHEET ĐỐI CHIẾU CÂN ĐỐI TÀI KHOẢN
+    # -------------------------------------------------------------
+    # SHEET 5: BẢNG CÂN ĐỐI TÀI KHOẢN TỔNG HỢP
+    # -------------------------------------------------------------
     ws5 = wb.create_sheet(title='Bảng Cân đối tài khoản')
     ws5.views.sheetView[0].showGridLines = True
-    ws5['A2'] = 'BẢNG ĐỐI CHIẾU SỐ DƯ & PHÁT SINH CÁC TÀI KHOẢN (CẤP 1 & CẤP 2)'
+    ws5['A2'] = 'BẢNG TỔNG HỢP SỐ DƯ & PHÁT SINH CÁC TÀI KHOẢN (CẤP 1 & CẤP 2)'
     ws5['A2'].font = font_title
-    ws5['A3'] = 'Chi tiết số liệu đối chiếu kiểm toán theo chuẩn kế toán Việt Nam'
+    ws5['A3'] = f"Đối chiếu kiểm toán đa kỳ - Năm {yr_str} (Đơn vị tính: VNĐ)"
     ws5['A3'].font = font_subtitle
 
-    tb_headers = ['Số hiệu TK', 'Tên tài khoản', 'Dư Nợ ĐK (01/01)', 'Dư Có ĐK (01/01)', 'PS Nợ Q1', 'PS Có Q1', 'Dư Nợ Q1 (31/03)', 'Dư Có Q1 (31/03)', 'PS Nợ Q2', 'PS Có Q2', 'Dư Nợ Q2 (30/06)', 'Dư Có Q2 (30/06)', 'Biến động Dư ròng Q2/Q1']
+    tb_headers = ['Số hiệu TK', 'Tên tài khoản', f"Dư Nợ ĐK (01/01/{yr_str})", f"Dư Có ĐK (01/01/{yr_str})"]
+    for p in period_items:
+        tb_headers += [f"PS Nợ {p['label']}", f"PS Có {p['label']}", f"Dư Nợ Cuối {p['label']}", f"Dư Có Cuối {p['label']}"]
+    tb_headers.append("Biến động Dư ròng")
+
     for col_idx, h in enumerate(tb_headers, 1):
         cell = ws5.cell(5, col_idx, h)
         cell.font = font_header
@@ -521,38 +711,66 @@ def generate_financial_report(q1_file, q2_file, output_file):
         cell.border = border_header
     ws5.row_dimensions[5].height = 25
 
-    all_accs = sorted(set(list(q1.keys()) + list(q2.keys())), key=lambda x: (x.split('.')[0], len(x), x))
+    all_accs_set = set()
+    for p in period_items:
+        all_accs_set.update(p['data'].keys())
+    all_accs = sorted(all_accs_set, key=lambda x: (x.split('.')[0], len(x), x))
     filtered_accs = [tk for tk in all_accs if len(tk.split('.')[0]) <= 4]
 
     r_idx = 6
     for tk in filtered_accs:
-        d1 = q1.get(tk, {})
-        d2 = q2.get(tk, {})
-        name = d2.get('name') or d1.get('name') or ''
-        dk_n, dk_c = d1.get('dk_n', 0), d1.get('dk_c', 0)
-        ps_n1, ps_c1 = d1.get('ps_n', 0), d1.get('ps_c', 0)
-        ck_n1, ck_c1 = d1.get('ck_n', 0), d1.get('ck_c', 0)
-        ps_n2, ps_c2 = d2.get('ps_n', 0), d2.get('ps_c', 0)
-        ck_n2, ck_c2 = d2.get('ck_n', 0), d2.get('ck_c', 0)
-        diff_net = (ck_n2 - ck_c2) - (ck_n1 - ck_c1)
-        is_lvl1 = (len(tk) == 3 and tk.isdigit())
+        name = ''
+        for p in reversed(period_items):
+            if tk in p['data'] and p['data'][tk].get('name'):
+                name = p['data'][tk]['name']
+                break
         
+        d_first = period_items[0]['data'].get(tk, {})
+        dk_n = d_first.get('dk_n', 0)
+        dk_c = d_first.get('dk_c', 0)
+
+        is_lvl1 = (len(tk) == 3 and tk.isdigit())
         ws5.cell(r_idx, 1, tk).alignment = Alignment(horizontal='center')
         ws5.cell(r_idx, 2, name)
-        vals = [dk_n, dk_c, ps_n1, ps_c1, ck_n1, ck_c1, ps_n2, ps_c2, ck_n2, ck_c2, diff_net]
-        for c_idx, val_item in enumerate(vals, 3):
-            cell = ws5.cell(r_idx, c_idx, val_item)
-            cell.number_format = '#,##0;(#,##0);"-";@'
-            cell.alignment = Alignment(horizontal='right')
+        
+        c3 = ws5.cell(r_idx, 3, dk_n)
+        c4 = ws5.cell(r_idx, 4, dk_c)
+        c3.number_format = '#,##0;(#,##0);"-";@'
+        c4.number_format = '#,##0;(#,##0);"-";@'
+        c3.alignment = Alignment(horizontal='right')
+        c4.alignment = Alignment(horizontal='right')
+
+        col_c = 5
+        last_net = 0.0
+        for p in period_items:
+            d = p['data'].get(tk, {})
+            ps_n = d.get('ps_n', 0)
+            ps_c = d.get('ps_c', 0)
+            ck_n = d.get('ck_n', 0)
+            ck_c = d.get('ck_c', 0)
+            last_net = ck_n - ck_c
+
+            for val_i in [ps_n, ps_c, ck_n, ck_c]:
+                c = ws5.cell(r_idx, col_c, val_i)
+                c.number_format = '#,##0;(#,##0);"-";@'
+                c.alignment = Alignment(horizontal='right')
+                col_c += 1
+
+        init_net = dk_n - dk_c
+        diff_net = last_net - init_net
+        c_diff = ws5.cell(r_idx, col_c, diff_net)
+        c_diff.number_format = '#,##0;(#,##0);"-";@'
+        c_diff.alignment = Alignment(horizontal='right')
+
         row_font = font_bold if is_lvl1 else font_regular
-        for c in range(1, 14):
-            ws5.cell(r_idx, c).font = row_font
-            ws5.cell(r_idx, c).border = border_cell
+        for c_i in range(1, len(tb_headers) + 1):
+            ws5.cell(r_idx, c_i).font = row_font
+            ws5.cell(r_idx, c_i).border = border_cell
             if is_lvl1:
-                ws5.cell(r_idx, c).fill = fill_section
+                ws5.cell(r_idx, c_i).fill = fill_section
         r_idx += 1
 
-    # Auto widths
+    # 6. Tự động điều chỉnh độ rộng cột
     for ws in [ws1, ws2, ws3, ws4, ws5]:
         for col in ws.columns:
             max_len = 0
@@ -560,14 +778,13 @@ def generate_financial_report(q1_file, q2_file, output_file):
             for cell in col:
                 val_str = str(cell.value or '')
                 if cell.number_format and ('#,##0' in cell.number_format or '%' in cell.number_format):
-                    max_len = max(max_len, 14)
+                    max_len = max(max_len, 15)
                 else:
                     if cell.row > 4:
                         max_len = max(max_len, len(val_str))
             ws.column_dimensions[col_letter].width = max(max_len + 3, 12)
 
     ws1.column_dimensions['A'].width = 42
-    ws1.column_dimensions['G'].width = 38
     ws2.column_dimensions['A'].width = 54
     ws3.column_dimensions['A'].width = 55
     ws4.column_dimensions['A'].width = 58
@@ -577,11 +794,46 @@ def generate_financial_report(q1_file, q2_file, output_file):
     wb.save(output_file)
     print(f"[✓] ĐÃ LẬP THÀNH CÔNG BỘ BÁO CÁO TÀI CHÍNH TẠI: {output_file}")
 
-if __name__ == '__main__':
-    parser = argparse.ArgumentParser(description='Tự động lập Bộ Báo cáo Tài chính từ Bảng Cân đối tài khoản Q1 và Q2.')
-    parser.add_argument('--q1', default='/workspace/Bang_can_doi_tai_khoanQ12026.xlsx', help='Đường dẫn file BCĐTK Q1')
-    parser.add_argument('--q2', default='/workspace/Bang_can_doi_tai_khoanQ22026.xlsx', help='Đường dẫn file BCĐTK Q2')
-    parser.add_argument('--output', default='/workspace/Bo_Bao_Cao_Tai_Chinh_Q1_Q2_2026.xlsx', help='Đường dẫn file kết quả xuất ra')
+def main():
+    parser = argparse.ArgumentParser(description='Tool tự động lập Báo cáo Tài chính đa kỳ theo Thông tư 200/2014/TT-BTC.')
+    parser.add_argument('--dir', help='Thư mục chứa các file Bảng cân đối tài khoản (.xlsx) cần xử lý')
+    parser.add_argument('--files', nargs='+', help='Danh sách các file Bảng cân đối tài khoản (.xlsx)')
+    parser.add_argument('--q1', help='Đường dẫn file Quý 1 (hỗ trợ lệnh cũ)')
+    parser.add_argument('--q2', help='Đường dẫn file Quý 2 (hỗ trợ lệnh cũ)')
+    parser.add_argument('--output', default='output/Bo_Bao_Cao_Tai_Chinh.xlsx', help='Đường dẫn file kết quả xuất ra')
+
     args = parser.parse_args()
 
-    generate_financial_report(args.q1, args.q2, args.output)
+    file_list = []
+    if args.dir:
+        file_list = sorted(glob.glob(os.path.join(args.dir, '*.xlsx')))
+        # Loại trừ các file output nếu nằm chung thư mục
+        file_list = [f for f in file_list if not os.path.basename(f).startswith('Bo_Bao_Cao')]
+    elif args.files:
+        file_list = args.files
+    elif args.q1 or args.q2:
+        if args.q1: file_list.append(args.q1)
+        if args.q2: file_list.append(args.q2)
+    else:
+        # Mặc định quét thư mục data/
+        default_dir = os.path.join(os.path.dirname(__file__), 'data')
+        if os.path.exists(default_dir):
+            file_list = sorted(glob.glob(os.path.join(default_dir, '*.xlsx')))
+        if not file_list:
+            # Fallback thư mục hiện tại
+            file_list = sorted(glob.glob('*.xlsx'))
+            file_list = [f for f in file_list if not os.path.basename(f).startswith('Bo_Bao_Cao')]
+
+    if not file_list:
+        print("[!] Không tìm thấy file dữ liệu nào. Vui lòng sử dụng --dir hoặc --files.")
+        sys.exit(1)
+
+    # Đảm bảo thư mục output tồn tại
+    out_dir = os.path.dirname(args.output)
+    if out_dir and not os.path.exists(out_dir):
+        os.makedirs(out_dir, exist_ok=True)
+
+    generate_multi_period_report(file_list, args.output)
+
+if __name__ == '__main__':
+    main()

@@ -2,40 +2,66 @@
 
 Công cụ Python tự động hóa phân tích Bảng cân đối tài khoản (Trial Balance) và lập Bộ Báo cáo Tài chính hoàn chỉnh theo chuẩn mực Kế toán Doanh nghiệp Việt Nam (Thông tư 200/2014/TT-BTC).
 
-## 🚀 Tính năng chính
+## 🚀 Tính năng nổi bật
 
-1. **Bảng Cân đối kế toán (Mẫu B01-DN):**
-   - Tự động phân loại tài sản ngắn hạn/dài hạn, nợ phải trả và vốn chủ sở hữu.
-   - Tự động kết chuyển và đối soát lợi nhuận trong kỳ đảm bảo cân đối 100% (Tổng Tài sản = Tổng Nguồn vốn).
-   - So sánh biến động giữa các quý (Đầu năm, Quý 1, Quý 2) và tính tỷ lệ tăng trưởng (%).
+1. **Hỗ trợ xử lý đa kỳ linh hoạt (Multi-period support):**
+   - Tự động nhận diện kỳ kế toán từ nội dung file Excel hoặc tên file (ví dụ: `Quý 1 năm 2025`, `Quý 2 năm 2025`, `Quý 3 năm 2025`, `Quý 4 năm 2025`...).
+   - Hỗ trợ bất kỳ số lượng kỳ: 1 quý, 2 quý, 3 quý, 4 quý (cả năm) hoặc chuỗi nhiều năm.
+   - Tự động sắp xếp các kỳ theo trình tự thời gian và tự động mở rộng các cột báo cáo tương ứng.
 
-2. **Báo cáo Kết quả hoạt động kinh doanh (Mẫu B02-DN):**
-   - Đầy đủ các chỉ tiêu: Doanh thu thuần, Giá vốn, Lợi nhuận gộp, Doanh thu tài chính, Chi phí tài chính/quản lý, Lợi nhuận trước thuế và sau thuế.
-   - Phân tích chi tiết số liệu từng quý và lũy kế 6 tháng.
+2. **Bảng Cân đối kế toán (Mẫu B01-DN):**
+   - Phân loại chuẩn xác Tài sản ngắn hạn/dài hạn, Nợ phải trả và Vốn chủ sở hữu theo Thông tư 200.
+   - Tự động xác định và phân bổ lợi nhuận chưa phân phối năm nay vào Vốn chủ sở hữu.
+   - **Cam kết cân đối tuyệt đối 100% (Tổng Tài sản = Tổng Nguồn vốn)** tại mọi mốc thời gian báo cáo.
+   - So sánh biến động số dư qua các quý và tỷ lệ tăng trưởng lũy kế cả năm.
 
-3. **Báo cáo Lưu chuyển tiền tệ (Mẫu B03-DN - Phương pháp gián tiếp):**
-   - Tính toán lưu chuyển tiền thuần từ hoạt động kinh doanh, đầu tư và tài chính.
-   - Đối chiếu số dư tiền cuối kỳ khớp 100% với Bảng cân đối kế toán.
+3. **Báo cáo Kết quả hoạt động kinh doanh (Mẫu B02-DN):**
+   - Doanh thu thuần, Giá vốn, Lợi nhuận gộp, Doanh thu tài chính, Chi phí tài chính/quản lý, Lợi nhuận trước thuế và sau thuế.
+   - Chi tiết từng quý (Q1, Q2, Q3, Q4) và cột tổng cộng Lũy kế cả năm (Full Year).
+   - Tỷ lệ tăng trưởng kết quả kinh doanh kỳ cuối so với kỳ trước.
 
-4. **Dashboard & Phân tích KPI tài chính:**
+4. **Báo cáo Lưu chuyển tiền tệ (Mẫu B03-DN - Phương pháp gián tiếp):**
+   - Tự động bóc tách lưu chuyển tiền từ Hoạt động kinh doanh (CFO), Hoạt động đầu tư (CFI) và Hoạt động tài chính (CFF).
+   - Đối chiếu số dư Tiền và tương đương tiền cuối kỳ khớp 100% với Bảng cân đối kế toán.
+
+5. **Dashboard & Phân tích KPI tài chính quản trị:**
    - Biên lợi nhuận gộp (Gross Margin), Biên lợi nhuận ròng (Net Margin).
-   - Tỷ số thanh toán hiện hành (Current Ratio), Tỷ số thanh toán tức thời (Cash Ratio), Tỷ số nợ/Tổng tài sản.
-   - Nhận xét và đánh giá chuyên môn tài chính quản trị.
+   - Tỷ số thanh toán hiện hành (Current Ratio), Tỷ số thanh toán tiền mặt tức thời (Cash Ratio), Tỷ số nợ/Tổng tài sản (D/A).
+   - Tóm tắt và đánh giá xu hướng tài chính doanh nghiệp.
 
-5. **Bảng Cân đối tài khoản tổng hợp:**
-   - Tổng hợp số dư, phát sinh các tài khoản cấp 1 và cấp 2 để đối chiếu kiểm toán.
+6. **Bảng Cân đối tài khoản tổng hợp:**
+   - Đối chiếu toàn bộ số dư đầu kỳ, phát sinh Nợ/Có và số dư cuối kỳ của các tài khoản cấp 1 và cấp 2 qua tất cả các quý.
 
 ---
 
-## 🛠 Cài đặt & Sử dụng
+## 🛠 Cài đặt & Hướng dẫn sử dụng
 
-### 1. Cài đặt môi trường
+### 1. Cài đặt thư viện
 Yêu cầu Python 3.9+
 ```bash
 pip install -r requirements.txt
 ```
 
-### 2. Chạy lệnh lập báo cáo
+### 2. Cách chạy tool
+
+#### Cách 1: Chỉ định thư mục chứa các file Bảng cân đối tài khoản (Khuyên dùng)
+Chỉ cần thả toàn bộ file Excel các quý (ví dụ: Q1, Q2, Q3, Q4 năm 2025 hoặc 2026) vào thư mục `data/`:
+```bash
+python3 lap_bao_cao_tai_chinh.py --dir data --output output/Bo_Bao_Cao_Tai_Chinh.xlsx
+```
+*Tool sẽ tự động quét toàn bộ file, đọc tiêu đề Quý/Năm, sắp xếp thứ tự và xuất ra một báo cáo tổng hợp duy nhất.*
+
+#### Cách 2: Truyền danh sách file cụ thể
+```bash
+python3 lap_bao_cao_tai_chinh.py \
+    --files data/Bang_can_doi_tai_khoanQ12025.xlsx \
+            data/Bang_can_doi_tai_khoanQ22025.xlsx \
+            data/Bang_can_doi_tai_khoanQ32025.xlsx \
+            data/Bang_can_doi_tai_khoanQ42025.xlsx \
+    --output output/Bo_Bao_Cao_Tai_Chinh_2025.xlsx
+```
+
+#### Cách 3: Lệnh 2 quý (Backward compatibility)
 ```bash
 python3 lap_bao_cao_tai_chinh.py \
     --q1 data/Bang_can_doi_tai_khoanQ12026.xlsx \
@@ -49,13 +75,13 @@ python3 lap_bao_cao_tai_chinh.py \
 
 ```
 financial-statement-tool/
-├── data/                                 # Dữ liệu Bảng cân đối tài khoản đầu vào
+├── data/                                 # Chứa các file Excel Bảng cân đối tài khoản đầu vào
 │   ├── Bang_can_doi_tai_khoanQ12026.xlsx
 │   └── Bang_can_doi_tai_khoanQ22026.xlsx
-├── output/                               # File báo cáo kết xuất
+├── output/                               # Chứa file Excel báo cáo hoàn chỉnh xuất ra
 │   └── Bo_Bao_Cao_Tai_Chinh_Q1_Q2_2026.xlsx
-├── lap_bao_cao_tai_chinh.py             # Script xử lý và tự động hóa chính
-├── requirements.txt                      # Thư viện phụ thuộc
+├── lap_bao_cao_tai_chinh.py             # Script xử lý đa kỳ và lập báo cáo
+├── requirements.txt                      # Danh mục thư viện phụ thuộc
 ├── .gitignore
 └── README.md
 ```
