@@ -166,8 +166,10 @@ financial-statement-tool/
 │   ├── Bao_Cao_Hop_Nhat_Q1_2026.xlsx
 │   └── Bao_Cao_Hop_Nhat_Q2_2026.xlsx
 ├── vba/                                  # Thư mục mã nguồn VBA
-│   ├── BaoCaoTaiChinh_TT200.bas
-│   └── HD_SU_DUNG_VBA.md
+│   ├── BaoCaoTaiChinh_TT200.bas          # [Luồng 1] Module VBA BCTC TT200
+│   ├── HD_SU_DUNG_VBA.md                 # [Luồng 1] Hướng dẫn sử dụng VBA TT200
+│   ├── BaoCaoHopNhat_TCTD.bas            # [Luồng 2] Module VBA BCTC Hợp nhất TCTD (Native Excel)
+│   └── HD_SU_DUNG_VBA_HOP_NHAT.md        # [Luồng 2] Hướng dẫn sử dụng VBA Hợp nhất TCTD
 ├── requirements.txt
 ├── .gitignore
 └── README.md

@@ -243,16 +243,47 @@ def update_report_package(template_path, output_path, quarter, year, so_lieu_dic
         ws_bt['D25'] = can_tru.get('D25', 0)
         ws_bt['D27'] = can_tru.get('D27', 0)
 
-    # 3. Cập nhật tiêu đề kỳ báo cáo trên các sheet B02, B03, B04, B05, Thue
     if 'B02' in wb.sheetnames:
         ws_b02 = wb['B02']
         ws_b02['A6'] = f"Quý {q_roman} năm {year}"
+        ws_b02['D89'] = "='so lieu'!G41"  # Số dư cuối kỳ của TK 692001 (Lợi nhuận năm trước)
 
     if 'B03' in wb.sheetnames:
         ws_b03 = wb['B03']
         ws_b03['A7'] = f"Năm {year}"
         ws_b03['A8'] = f"Ngày {end_date_str}"
         ws_b03['D11'] = f"Quý {q_roman}"
+
+        # Khi lập Quý 2: Điền số liệu Quý 1 vào Cột J để Cột L lũy kế cộng đủ 6 tháng
+        if quarter == 2:
+            ws_b03['J11'] = "Quý I"
+            ws_b03['J12'] = f"Năm {year}"
+            def dk_n(tk): return so_lieu_dict.get(tk, [0]*6)[0]
+            def dk_c(tk): return so_lieu_dict.get(tk, [0]*6)[1]
+            j14 = dk_c('701001') - dk_n('701001')
+            j17 = dk_c('711001')
+            j18 = dk_n('811001') - dk_c('811001')
+            j20 = dk_c('721001') - dk_n('721001') - dk_n('821001')
+            chiphi_q1 = sum(dk_n(tk) for tk in [
+                '832099', '851103', '852001', '853101', '853201', '853401', '853999', '856001', '859001',
+                '861101', '861401', '862001', '863001', '865001', '866001', '868001', '869101', '869301',
+                '869401', '869402', '869701', '869999', '871001', '872001'
+            ])
+            j27 = chiphi_q1
+            j28 = j14 + (j17 - j18) + j20 - j27
+            j30 = j28
+            j31 = dk_n('833101')
+            j34 = j30 - j31
+            j36 = j34
+            ws_b03['J14'] = j14
+            ws_b03['J17'] = j17
+            ws_b03['J18'] = j18
+            ws_b03['J20'] = j20
+            ws_b03['J27'] = j27
+            ws_b03['J30'] = j30
+            ws_b03['J31'] = j31
+            ws_b03['J34'] = j34
+            ws_b03['J36'] = j36
 
     if 'B04' in wb.sheetnames:
         ws_b04 = wb['B04']
