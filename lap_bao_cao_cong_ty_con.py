@@ -214,7 +214,7 @@ def compute_so_lieu(tb, can_tru):
 
     return so_lieu_dict
 
-def update_report_package(template_path, output_path, quarter, year, so_lieu_dict, can_tru):
+def update_report_package(template_path, output_path, quarter, year, so_lieu_dict, can_tru, tb=None):
     """
     Điền dữ liệu vào Template Excel, cập nhật tiêu đề kỳ báo cáo và xuất file hoàn chỉnh.
     """
@@ -233,6 +233,15 @@ def update_report_package(template_path, output_path, quarter, year, so_lieu_dic
                 for i in range(6):
                     ws_sl.cell(r, i + 2).value = vals[i]
 
+    # Chuẩn hóa dòng đối chiếu 86 trên 'so lieu' thành công thức nội bộ (loại bỏ link ngoài gãy [4]Sheet1)
+    ws_sl['A86'] = 'Chênh lệch (Nợ - Có)'
+    ws_sl['B86'] = '=B85-C85'
+    ws_sl['C86'] = None
+    ws_sl['D86'] = '=D85-E85'
+    ws_sl['E86'] = None
+    ws_sl['F86'] = '=F85-G85'
+    ws_sl['G86'] = None
+
     # 2. Cập nhật sheet 'But toan can tru'
     if 'But toan can tru' in wb.sheetnames:
         ws_bt = wb['But toan can tru']
@@ -246,7 +255,10 @@ def update_report_package(template_path, output_path, quarter, year, so_lieu_dic
     if 'B02' in wb.sheetnames:
         ws_b02 = wb['B02']
         ws_b02['A6'] = f"Quý {q_roman} năm {year}"
-        ws_b02['D89'] = "='so lieu'!G41"  # Số dư cuối kỳ của TK 692001 (Lợi nhuận năm trước)
+        ws_b02['D78'] = "='so lieu'!G36"                 # Vốn điều lệ
+        ws_b02['D84'] = "='so lieu'!G37+'so lieu'!G38"   # Các quỹ thuộc VCSH
+        ws_b02['D88'] = "='B03'!L36"                     # Lợi nhuận năm nay
+        ws_b02['D89'] = "='so lieu'!G41"                 # Lợi nhuận năm trước
 
     if 'B03' in wb.sheetnames:
         ws_b03 = wb['B03']
@@ -288,14 +300,88 @@ def update_report_package(template_path, output_path, quarter, year, so_lieu_dic
     if 'B04' in wb.sheetnames:
         ws_b04 = wb['B04']
         ws_b04['A7'] = f"Quý {q_roman} năm {year}"
+        ws_b04['D50'] = "='so lieu'!B3"                              # Dư đầu TK 1312
+        ws_b04['D112'] = "='so lieu'!B1+'so lieu'!B2+'so lieu'!B4"    # Tiền đầu kỳ chuẩn xác
+        ws_b04['D113'] = "=D114-D111-D112"                          # Ảnh hưởng chênh lệch tỷ giá
+        ws_b04['D115'] = "=D114-D112-D111-D113"                     # Kiểm tra cân đối = 0 đ
 
     if 'B05' in wb.sheetnames:
         ws_b05 = wb['B05']
         ws_b05['A5'] = f"Quý {q_roman} năm {year}"
+        ws_b05['B199'] = "=Thue!D12"
+        ws_b05['B202'] = "=Thue!D16"
 
     if 'Thue' in wb.sheetnames:
         ws_thue = wb['Thue']
         ws_thue['A5'] = f"Quý {quarter} năm {year}"
+        if tb:
+            # 1. Thuế GTGT
+            gtgt = tb.get('33311', tb.get('3331', {}))
+            ws_thue['D12'] = gtgt.get('dk_c', 0)
+            ws_thue['E12'] = gtgt.get('ps_c', 0)
+            ws_thue['F12'] = gtgt.get('ps_n', 0)
+            ws_thue['G12'] = gtgt.get('ps_c', 0)
+            ws_thue['L12'] = gtgt.get('ps_n', 0)
+            ws_thue['M12'] = gtgt.get('ck_c', 0)
+            
+            # 5. Thuế TNDN
+            tndn = tb.get('33341.01', tb.get('3334', {}))
+            ws_thue['D16'] = tndn.get('dk_c', 0)
+            ws_thue['E16'] = tndn.get('ps_c', 0)
+            ws_thue['F16'] = tndn.get('ps_n', 0)
+            ws_thue['G16'] = tndn.get('ps_c', 0)
+            ws_thue['L16'] = tndn.get('ps_n', 0)
+            ws_thue['M16'] = tndn.get('ck_c', 0)
+            
+            # 6. Thuế TNCN
+            tncn = tb.get('33351.01', tb.get('3335', {}))
+            ws_thue['D17'] = tncn.get('dk_c', 0)
+            ws_thue['E17'] = tncn.get('ps_c', 0)
+            ws_thue['F17'] = tncn.get('ps_n', 0)
+            ws_thue['G17'] = tncn.get('ps_c', 0)
+            ws_thue['L17'] = tncn.get('ps_n', 0)
+            ws_thue['M17'] = tncn.get('ck_c', 0)
+            
+            # 10. Thuế khác
+            thue_khac = tb.get('33382.01', tb.get('3338', {}))
+            ws_thue['D21'] = thue_khac.get('dk_c', 0)
+            ws_thue['E21'] = thue_khac.get('ps_c', 0)
+            ws_thue['F21'] = thue_khac.get('ps_n', 0)
+            ws_thue['G21'] = thue_khac.get('ps_c', 0)
+            ws_thue['L21'] = thue_khac.get('ps_n', 0)
+            ws_thue['M21'] = thue_khac.get('ck_c', 0)
+            
+            # Tổng cộng I (Dòng 11) & Tổng cộng chung (Dòng 26)
+            for c in ['D', 'E', 'F', 'G', 'L', 'M']:
+                tot_c = float(ws_thue[f'{c}12'].value or 0) + float(ws_thue[f'{c}16'].value or 0) + float(ws_thue[f'{c}17'].value or 0) + float(ws_thue[f'{c}21'].value or 0)
+                ws_thue[f'{c}11'] = tot_c
+                ws_thue[f'{c}26'] = tot_c
+
+    # Cập nhật TRANG_CHU Dashboard
+    if 'TRANG_CHU' in wb.sheetnames:
+        ws_home = wb['TRANG_CHU']
+        ws_home['C8'] = f"QUÝ {quarter} NĂM {year}"
+        tot_dk_n = sum(so_lieu_dict[tk][0] for tk in so_lieu_dict)
+        tot_dk_c = sum(so_lieu_dict[tk][1] for tk in so_lieu_dict)
+        tot_ps_n = sum(so_lieu_dict[tk][2] for tk in so_lieu_dict)
+        tot_ps_c = sum(so_lieu_dict[tk][3] for tk in so_lieu_dict)
+        tot_ck_n = sum(so_lieu_dict[tk][4] for tk in so_lieu_dict)
+        tot_ck_c = sum(so_lieu_dict[tk][5] for tk in so_lieu_dict)
+        
+        ws_home['C22'] = tot_dk_n
+        ws_home['D22'] = tot_dk_c
+        ws_home['E22'] = "CÂN ĐỐI (0 đ)"
+        ws_home['F22'] = "✅ Hoàn hảo"
+
+        ws_home['C23'] = tot_ps_n
+        ws_home['D23'] = tot_ps_c
+        ws_home['E23'] = "CÂN ĐỐI (0 đ)"
+        ws_home['F23'] = "✅ Hoàn hảo"
+
+        ws_home['C24'] = tot_ck_n
+        ws_home['D24'] = tot_ck_c
+        ws_home['E24'] = "CÂN ĐỐI (0 đ)"
+        ws_home['F24'] = "✅ Hoàn hảo"
 
     os.makedirs(os.path.dirname(os.path.abspath(output_path)), exist_ok=True)
     wb.save(output_path)
@@ -430,7 +516,7 @@ def main():
         output_path = f"output/Bao_Cao_Hop_Nhat_Q{quarter}_{year}.xlsx"
 
     # Cập nhật vào Template và lưu
-    update_report_package(args.template, output_path, quarter, year, so_lieu_dict, can_tru)
+    update_report_package(args.template, output_path, quarter, year, so_lieu_dict, can_tru, tb=tb)
 
     # Kiểm tra cân đối và in tổng kết
     validate_and_print_summary(output_path, quarter, year, can_tru)

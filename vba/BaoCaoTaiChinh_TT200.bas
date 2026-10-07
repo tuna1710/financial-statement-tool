@@ -73,6 +73,25 @@ Private Sub XuLyVaLapBaoCao(ws As Worksheet)
     lastRow = ws.Cells(ws.Rows.Count, 1).End(xlUp).Row
     If lastRow < 10 Then lastRow = ws.Cells(ws.Rows.Count, 2).End(xlUp).Row
     
+    Dim colDkNo As Integer, colDkCo As Integer
+    Dim colPsNo As Integer, colPsCo As Integer
+    Dim colCkNo As Integer, colCkCo As Integer
+    
+    colDkNo = 3: colDkCo = 4
+    colPsNo = 5: colPsCo = 6
+    colCkNo = 7: colCkCo = 8
+    
+    ' Tu dong nhan dien cot neu file co merge cell (chuan Mau MISA/FAST: Cot 3, 5, 6, 7, 13, 15)
+    For r = 1 To lastRow
+        If r > 35 Then Exit For
+        If Val(ws.Cells(r, 13).Value) > 0 Or Val(ws.Cells(r, 15).Value) > 0 Then
+            colDkNo = 3: colDkCo = 5
+            colPsNo = 6: colPsCo = 7
+            colCkNo = 13: colCkCo = 15
+            Exit For
+        End If
+    Next r
+    
     ' 1. Quet du lieu va loai bo dong lap tieu de trang
     For r = 1 To lastRow
         cellVal = Trim(CStr(ws.Cells(r, 1).Value))
@@ -80,12 +99,12 @@ Private Sub XuLyVaLapBaoCao(ws As Worksheet)
             acc = cellVal
             accName = Trim(CStr(ws.Cells(r, 2).Value))
             
-            dkNo = CDbl(Val(ws.Cells(r, 3).Value))
-            dkCo = CDbl(Val(ws.Cells(r, 4).Value))
-            psNo = CDbl(Val(ws.Cells(r, 5).Value))
-            psCo = CDbl(Val(ws.Cells(r, 6).Value))
-            ckNo = CDbl(Val(ws.Cells(r, 7).Value))
-            ckCo = CDbl(Val(ws.Cells(r, 8).Value))
+            dkNo = CDbl(Val(ws.Cells(r, colDkNo).Value))
+            dkCo = CDbl(Val(ws.Cells(r, colDkCo).Value))
+            psNo = CDbl(Val(ws.Cells(r, colPsNo).Value))
+            psCo = CDbl(Val(ws.Cells(r, colPsCo).Value))
+            ckNo = CDbl(Val(ws.Cells(r, colCkNo).Value))
+            ckCo = CDbl(Val(ws.Cells(r, colCkCo).Value))
             
             dictDK_No(acc) = dkNo
             dictDK_Co(acc) = dkCo

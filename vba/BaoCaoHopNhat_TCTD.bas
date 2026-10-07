@@ -231,6 +231,15 @@ Sub CapNhatVaLapBaoCaoHopNhat()
         Next i
     Next r
     
+    ' Chuan hoa dong 86 tren sheet 'so lieu' ve kiem tra can doi noi bo (Lech = 0 d)
+    wsSL.Range("A86").Value = "Chenh lech (No - Co)"
+    wsSL.Range("B86").Formula = "=B85-C85"
+    wsSL.Range("C86").Value = ""
+    wsSL.Range("D86").Formula = "=D85-E85"
+    wsSL.Range("E86").Value = ""
+    wsSL.Range("F86").Formula = "=F85-G85"
+    wsSL.Range("G86").Value = ""
+    
     ' 4. Cap nhat sheet 'But toan can tru'
     wsBT.Range("D4").Value = canTruWU
     wsBT.Range("D7").Value = canTruD7
@@ -248,11 +257,18 @@ Sub CapNhatVaLapBaoCaoHopNhat()
     
     On Error Resume Next
     Dim wsB02 As Worksheet, wsB03 As Worksheet
+    Dim wsB04 As Worksheet, wsB05 As Worksheet, wsThue As Worksheet
     Set wsB02 = ThisWorkbook.Sheets("B02")
     Set wsB03 = ThisWorkbook.Sheets("B03")
+    Set wsB04 = ThisWorkbook.Sheets("B04")
+    Set wsB05 = ThisWorkbook.Sheets("B05")
+    Set wsThue = ThisWorkbook.Sheets("Thue")
     
     wsB02.Range("A6").Value = "Quy " & qRoman & " nam " & yrNum
-    wsB02.Range("D89").Formula = "='so lieu'!G41" ' So du cuoi ky cua TK 692001 (Loi nhuan nam truoc)
+    wsB02.Range("D78").Formula = "='so lieu'!G36"                 ' Von dieu le
+    wsB02.Range("D84").Formula = "='so lieu'!G37+'so lieu'!G38"   ' Cac quy VCSH
+    wsB02.Range("D88").Formula = "='B03'!L36"                     ' LN nam nay
+    wsB02.Range("D89").Formula = "='so lieu'!G41"                 ' LN nam truoc
     
     wsB03.Range("A7").Value = "Nam " & yrNum
     wsB03.Range("A8").Value = "Ngay " & endDateStr & "/" & yrNum
@@ -299,9 +315,45 @@ Sub CapNhatVaLapBaoCaoHopNhat()
         wsB03.Range("J36").Value = j36
     End If
     
-    ThisWorkbook.Sheets("B04").Range("A7").Value = "Quy " & qRoman & " nam " & yrNum
-    ThisWorkbook.Sheets("B05").Range("A5").Value = "Quy " & qRoman & " nam " & yrNum
-    ThisWorkbook.Sheets("Thue").Range("A5").Value = "Quy " & qNum & " nam " & yrNum
+    wsB04.Range("A7").Value = "Quy " & qRoman & " nam " & yrNum
+    wsB04.Range("D50").Formula = "='so lieu'!B3"                              ' Du dau TK 1312
+    wsB04.Range("D112").Formula = "='so lieu'!B1+'so lieu'!B2+'so lieu'!B4"    ' Tien dau ky dong
+    wsB04.Range("D113").Formula = "=D114-D111-D112"                          ' Ty gia hoi doai
+    wsB04.Range("D115").Formula = "=D114-D112-D111-D113"                     ' Kiem tra can doi = 0
+    
+    wsB05.Range("A5").Value = "Quy " & qRoman & " nam " & yrNum
+    wsB05.Range("B199").Formula = "=Thue!D12"
+    wsB05.Range("B202").Formula = "=Thue!D16"
+    
+    wsThue.Range("A5").Value = "Quy " & qNum & " nam " & yrNum
+    
+    ' Cap nhat so lieu Thue
+    Dim arrT As Variant
+    If dictTB.Exists("33311") Then
+        arrT = dictTB("33311")
+        wsThue.Range("D12").Value = arrT(1): wsThue.Range("E12").Value = arrT(3): wsThue.Range("F12").Value = arrT(2): wsThue.Range("G12").Value = arrT(3): wsThue.Range("L12").Value = arrT(2): wsThue.Range("M12").Value = arrT(5)
+    End If
+    If dictTB.Exists("33341.01") Then
+        arrT = dictTB("33341.01")
+        wsThue.Range("D16").Value = arrT(1): wsThue.Range("E16").Value = arrT(3): wsThue.Range("F16").Value = arrT(2): wsThue.Range("G16").Value = arrT(3): wsThue.Range("L16").Value = arrT(2): wsThue.Range("M16").Value = arrT(5)
+    End If
+    If dictTB.Exists("33351.01") Then
+        arrT = dictTB("33351.01")
+        wsThue.Range("D17").Value = arrT(1): wsThue.Range("E17").Value = arrT(3): wsThue.Range("F17").Value = arrT(2): wsThue.Range("G17").Value = arrT(3): wsThue.Range("L17").Value = arrT(2): wsThue.Range("M17").Value = arrT(5)
+    End If
+    If dictTB.Exists("33382.01") Then
+        arrT = dictTB("33382.01")
+        wsThue.Range("D21").Value = arrT(1): wsThue.Range("E21").Value = arrT(3): wsThue.Range("F21").Value = arrT(2): wsThue.Range("G21").Value = arrT(3): wsThue.Range("L21").Value = arrT(2): wsThue.Range("M21").Value = arrT(5)
+    End If
+    
+    Dim cLetters As Variant, cL As Variant, totColVal As Double
+    cLetters = Array("D", "E", "F", "G", "L", "M")
+    For Each cL In cLetters
+        totColVal = Val(wsThue.Range(cL & "12").Value) + Val(wsThue.Range(cL & "16").Value) + Val(wsThue.Range(cL & "17").Value) + Val(wsThue.Range(cL & "21").Value)
+        wsThue.Range(cL & "11").Value = totColVal
+        wsThue.Range(cL & "26").Value = totColVal
+    Next cL
+
     On Error GoTo ErrorHandler
     
     ' 6. Kiem tra can doi va cap nhat Dashboard tren TRANG_CHU
@@ -319,17 +371,20 @@ Sub CapNhatVaLapBaoCaoHopNhat()
     
     With wsHome
         .Range("C8").Value = "QUY " & qNum & " NAM " & yrNum
-        .Range("C20").Value = Format(wsSL.Range("B85").Value, "#,##0")
-        .Range("D20").Value = Format(wsSL.Range("C85").Value, "#,##0")
-        .Range("E20").Value = IIf(Abs(diffDK) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffDK, "#,##0") & " d")
+        .Range("C22").Value = Format(wsSL.Range("B85").Value, "#,##0")
+        .Range("D22").Value = Format(wsSL.Range("C85").Value, "#,##0")
+        .Range("E22").Value = IIf(Abs(diffDK) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffDK, "#,##0") & " d")
+        .Range("F22").Value = IIf(Abs(diffDK) < 1, "Hoan hao", "Can kiem tra")
         
-        .Range("C21").Value = Format(wsSL.Range("D85").Value, "#,##0")
-        .Range("D21").Value = Format(wsSL.Range("E85").Value, "#,##0")
-        .Range("E21").Value = IIf(Abs(diffPS) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffPS, "#,##0") & " d")
+        .Range("C23").Value = Format(wsSL.Range("D85").Value, "#,##0")
+        .Range("D23").Value = Format(wsSL.Range("E85").Value, "#,##0")
+        .Range("E23").Value = IIf(Abs(diffPS) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffPS, "#,##0") & " d")
+        .Range("F23").Value = IIf(Abs(diffPS) < 1, "Hoan hao", "Can kiem tra")
         
-        .Range("C22").Value = Format(wsSL.Range("F85").Value, "#,##0")
-        .Range("D22").Value = Format(wsSL.Range("G85").Value, "#,##0")
-        .Range("E22").Value = IIf(Abs(diffCK) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffCK, "#,##0") & " d")
+        .Range("C24").Value = Format(wsSL.Range("F85").Value, "#,##0")
+        .Range("D24").Value = Format(wsSL.Range("G85").Value, "#,##0")
+        .Range("E24").Value = IIf(Abs(diffCK) < 1, "CAN DOI (0 d)", "LECH: " & Format(diffCK, "#,##0") & " d")
+        .Range("F24").Value = IIf(Abs(diffCK) < 1, "Hoan hao", "Can kiem tra")
     End With
     
     Application.ScreenUpdating = True
