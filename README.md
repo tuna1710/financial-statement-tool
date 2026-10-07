@@ -115,22 +115,60 @@ python3 lap_bao_cao_tai_chinh.py \
 
 ---
 
+## 🏢 5. Luồng Báo cáo Công ty con gửi Công ty mẹ (Phục vụ Hợp nhất BCTC)
+
+Luồng độc lập hoàn toàn chuyên phục vụ quy đổi Bảng cân đối tài khoản doanh nghiệp (Thông tư 200) sang hệ thống tài khoản và mẫu biểu của **Tổ chức Tín dụng (TCTD - NHNN)** để công ty con gửi lên Ngân hàng mẹ phục vụ lập Báo cáo Tài chính hợp nhất:
+
+### Tính năng:
+- **Tự động ánh xạ (Mapping):** Chuyển đổi chính xác 100% từ các tài khoản Thông tư 200 sang 84 tài khoản cấp 5 theo hệ thống kế toán TCTD (Sheet `so lieu`).
+- **Xử lý bút toán cấn trừ (Intercompany Elimination):** Hỗ trợ cấn trừ tài khoản trung gian ngoại tệ (TK 33886.02 / 13885.02), chuyển phải thu về tiền gửi (TK 112 / 13881), cấn trừ đối tác Western Union (WU), WASH...
+- **Bộ Báo cáo chuẩn gửi Công ty Mẹ:**
+  - `B02` (Mẫu B02a/TCTD): Báo cáo tình hình tài chính giữa niên độ.
+  - `B03` (Mẫu B03a/TCTD): Báo cáo kết quả hoạt động kinh doanh.
+  - `B04` (Mẫu B04a/TCTD): Báo cáo lưu chuyển tiền tệ (Phương pháp trực tiếp).
+  - `B05` (Mẫu B05a/TCTD): Thuyết minh Báo cáo Tài chính giữa niên độ.
+  - `Thue`: Bảng tình hình thực hiện nghĩa vụ đối với Nhà nước.
+- **Cam kết cân đối:** Đảm bảo Tổng Dư Nợ = Tổng Dư Có, Tổng Phát sinh Nợ = Tổng Phát sinh Có (Chênh lệch = 0 VNĐ).
+
+### Lệnh thực thi:
+```bash
+# Chạy cho Quý 1:
+python3 lap_bao_cao_cong_ty_con.py -i data/Bang_can_doi_tai_khoanQ12026.xlsx -o output/Bao_Cao_Hop_Nhat_Q1_2026.xlsx
+
+# Chạy cho Quý 2:
+python3 lap_bao_cao_cong_ty_con.py -i data/Bang_can_doi_tai_khoanQ22026.xlsx -o output/Bao_Cao_Hop_Nhat_Q2_2026.xlsx
+
+# Tùy biến số tiền bút toán cấn trừ thủ công (nếu cần):
+python3 lap_bao_cao_cong_ty_con.py \
+    -i data/Bang_can_doi_tai_khoanQ22026.xlsx \
+    --can-tru-d7 10460694846 \
+    --can-tru-d25 18358019545 \
+    -o output/Bao_Cao_Hop_Nhat_Q2_2026.xlsx
+```
+
+---
+
 ## 📁 Cấu trúc dự án
 
 ```
 financial-statement-tool/
-├── Bo_Bao_Cao_Tai_Chinh_TT200.xlsm      # File Excel Macro Native (Bấm nút chọn thư mục là chạy)
-├── Bao_Cao_Tai_Chinh_Colab.ipynb         # Google Colab Notebook tương tác 1-click & biểu đồ
-├── vba/                                  # Thư mục mã nguồn VBA
-│   ├── BaoCaoTaiChinh_TT200.bas          # Module VBA mã nguồn chính
-│   └── HD_SU_DUNG_VBA.md                 # Hướng dẫn chi tiết cách Import và sử dụng
-├── data/                                 # Chứa các file Excel Bảng cân đối tài khoản đầu vào
+├── Bo_Bao_Cao_Tai_Chinh_TT200.xlsm      # [Luồng 1] File Excel Macro Native TT200
+├── Bao_Cao_Tai_Chinh_Colab.ipynb         # [Luồng 1] Google Colab Notebook TT200
+├── lap_bao_cao_tai_chinh.py             # [Luồng 1] Script Python BCTC TT200
+├── lap_bao_cao_cong_ty_con.py           # [Luồng 2] Script Python BCTC gửi Công ty mẹ (Hợp nhất TCTD)
+├── templates/
+│   └── Mau_BCTC_Hop_Nhat_TCTD.xlsx      # [Luồng 2] Template chuẩn BCTC B02-B05 gửi Công ty mẹ
+├── data/                                 # Chứa file Bảng cân đối tài khoản đầu vào (Q1, Q2...)
 │   ├── Bang_can_doi_tai_khoanQ12026.xlsx
 │   └── Bang_can_doi_tai_khoanQ22026.xlsx
-├── output/                               # Chứa file Excel báo cáo hoàn chỉnh xuất ra
-│   └── Bo_Bao_Cao_Tai_Chinh_Q1_Q2_2026.xlsx
-├── lap_bao_cao_tai_chinh.py             # Script xử lý đa kỳ và lập báo cáo (Python)
-├── requirements.txt                      # Danh mục thư viện phụ thuộc
+├── output/                               # Thư mục xuất báo cáo hoàn chỉnh
+│   ├── Bo_Bao_Cao_Tai_Chinh_Q1_Q2_2026.xlsx
+│   ├── Bao_Cao_Hop_Nhat_Q1_2026.xlsx
+│   └── Bao_Cao_Hop_Nhat_Q2_2026.xlsx
+├── vba/                                  # Thư mục mã nguồn VBA
+│   ├── BaoCaoTaiChinh_TT200.bas
+│   └── HD_SU_DUNG_VBA.md
+├── requirements.txt
 ├── .gitignore
 └── README.md
 ```
